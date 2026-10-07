@@ -113,4 +113,15 @@ def test_end_to_end_infer_with_sources_and_linkedin():
 
 def test_source_confidence_ordering():
     w = config.SOURCE_WEIGHTS
-    assert w["linkedin_confirmed"] > w["own_correspondence"] > w["unknown_provenance"]
+    assert w["linkedin_confirmed"] > w["own_correspondence"] > w["own_database"] > w["unknown_provenance"]
+
+
+def test_source_class_by_file():
+    views = [_view("jane.doe@z.com", "Jane"),
+             ObservationView("john.roe@z.com", "z.com", "john.roe", "John", None, NEW, "year", True,
+                             source="leadlist"),
+             ObservationView("ann.lee@z.com", "z.com", "ann.lee", "Ann", None, NEW, "year", False,
+                             source="leadlist")]
+    classes = {x.email: x.source_class for x in infer(views, use_nicknames=False, as_of=AS_OF)["z.com"].samples}
+    assert classes == {"jane.doe@z.com": "own_correspondence", "john.roe@z.com": "own_database",
+                       "ann.lee@z.com": "unknown_provenance"}

@@ -11,7 +11,7 @@ total and the weight denominator, so they dilute dominance.
 
 Sample weight = recency x source confidence x delivery confirmation:
 - recency: 0.5 ** (age_years / half_life)
-- source:  linkedin_confirmed > own_correspondence > unknown_provenance
+- source:  linkedin_confirmed > own_correspondence > own_database > unknown_provenance
 - delivery: x DELIVERY_CONFIRMED_MULTIPLIER when delivery was confirmed
 
 Tiering (sample counts are distinct usable addresses; weights decide dominance):
@@ -49,6 +49,7 @@ class ObservationView:
     observed_at_precision: str
     provenance_confirmed: bool
     delivery_confirmed: bool = False
+    source: str | None = None
 
 
 @dataclass
@@ -94,7 +95,9 @@ def recency_weight(observed: date, as_of: date, half_life: float | None = None) 
 def _source_class(obs: ObservationView, m: Match | None, linkedin_used: bool) -> str:
     if m is not None and m.surname_known and linkedin_used:
         return "linkedin_confirmed"
-    return "own_correspondence" if obs.provenance_confirmed else "unknown_provenance"
+    if not obs.provenance_confirmed:
+        return "unknown_provenance"
+    return config.SOURCE_CLASS.get(obs.source or "", "own_correspondence")
 
 
 def build_samples(observations: Iterable[ObservationView], *, use_nicknames: bool,

@@ -56,9 +56,12 @@ pytest                              # LEADCORE_INTEGRATION=1 also runs the real-
 
 ## Decisions to review
 
-1. **Provenance by source.** `Reachouts_` (our outreach log) is `provenance_confirmed = True`.
-   `Lead_list` is `False`. So Lead-list-only contacts are never sendable, but they still seed inference.
-   `config.SOURCE_PROVENANCE_CONFIRMED` controls this.
+1. **Provenance by source.** Both files come from our own systems, so both are
+   `provenance_confirmed = True` (`config.SOURCE_PROVENANCE_CONFIRMED`). They differ in sample weight:
+   `Reachouts_` is the sequenced outreach log (`own_correspondence`, 0.8). `Lead_list` is an export of
+   our own, less curated contact database (`own_database`, 0.65). A future file of unknown origin
+   would be set to `False`. Its contacts would then be excluded from `sendable()` but would still
+   seed inference, at weight 0.5.
 2. **Dates.** There are no row-level dates. Reachouts rows are dated to 1 January of the sheet
    year. Lead_list rows use an assumed date (`config.LEADLIST_ASSUMED_DATE`, precision `assumed`),
    not the file mtime, which would change on every re-save. Assumed-date samples can't anchor a temporal split.
@@ -85,11 +88,11 @@ Measured on the files in `data/raw/` on 2026-10-07, before the nickname pass:
 | Unique company domains | 4,848 | 4,980 | +2.7% | no |
 | Email overlap (business contacts) | 1,715 | 1,733 | +1.0% | yes |
 | Rows resolving to exactly one pattern | ~93% | 95.7% | +2.7pp | no |
-| Tier A | 827 | 1,140 | +37.8% | no |
+| Tier A | 827 | 1,138 | +37.6% | no |
 | Tier B | 615 | 571 | −7.2% | no |
 | Tier C | 1,950 | 1,615 | −17.2% | no |
-| Tier D | 1,270 | 743 | −41.5% | no |
-| Generatable A/B/C | 3,392 | 3,326 | −1.9% | yes |
+| Tier D | 1,270 | 745 | −41.3% | no |
+| Generatable A/B/C | 3,392 | 3,324 | −2.0% | borderline |
 
 Diagnosis:
 
@@ -112,8 +115,8 @@ Diagnosis:
   that explains more characters with known name material wins). So `rob` for Rob is `first`, not also
   `flast` with surname "ob". The prior run probably counted those as ambiguous.
 
-Nickname pass delta (current engine): **22 Tier D domains rescued into A/B/C**
-(D→A 12, D→B 10). Also E→C 5, A→D 2. Unexplained samples fell from 404 to 362.
+Nickname pass delta (current engine): **24 Tier D domains rescued into A/B/C**
+(D→A 14, D→B 10). Also E→C 5, A→D 2. Unexplained samples fell from 404 to 362.
 Final totals with nicknames: A 1,150 · B 581 · C 1,620 · D 723 · E 906 · generatable 3,351.
 The two A→D moves are real conflicts the nickname table exposed. For example, `max@` and `nick@` at
 cpmstar.com had been mis-read as `flast` with surnames "ax" and "ick".

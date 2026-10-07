@@ -171,6 +171,7 @@ def _views(session: Session) -> tuple[list[inference.ObservationView], set[str]]
             first_name=o.first_name_raw, linkedin_surname=o.linkedin_surname,
             observed_at=o.observed_at, observed_at_precision=o.observed_at_precision,
             provenance_confirmed=o.provenance_confirmed, delivery_confirmed=o.delivery_confirmed,
+            source=o.source,
         ))
     return views, domains
 
@@ -180,6 +181,7 @@ def tunables() -> dict:
         "as_of": config.as_of().isoformat(),
         "half_life": config.RECENCY_HALF_LIFE_YEARS,
         "source_weights": config.SOURCE_WEIGHTS,
+        "source_provenance": config.SOURCE_PROVENANCE_CONFIRMED,
         "delivery_multiplier": config.DELIVERY_CONFIRMED_MULTIPLIER,
         "tier_a_min": config.TIER_A_MIN_SAMPLES,
         "tier_a_max_age": config.TIER_A_MAX_AGE_YEARS,

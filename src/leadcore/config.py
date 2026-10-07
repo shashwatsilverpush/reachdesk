@@ -35,15 +35,19 @@ LEADLIST_ASSUMED_DATE = date(2025, 1, 1)
 AS_OF: date | None = date(2026, 10, 7)
 
 # --- Provenance ---------------------------------------------------------------
-# Reachouts_ is our own outreach log; Lead_list's origin is not established.
-SOURCE_PROVENANCE_CONFIRMED = {"reachouts": True, "leadlist": False}
+# Both files come from our own systems: Reachouts_ is the sequenced outreach
+# log, Lead_list is an export of our own (less curated) contact database.
+SOURCE_PROVENANCE_CONFIRMED = {"reachouts": True, "leadlist": True}
+# Confidence class a provenance-confirmed source contributes to sample weight.
+SOURCE_CLASS = {"reachouts": "own_correspondence", "leadlist": "own_database"}
 
 # --- Sample weighting -----------------------------------------------------------
 RECENCY_HALF_LIFE_YEARS = 3.0
 SOURCE_WEIGHTS = {
     "linkedin_confirmed": 1.0,   # surname independently confirmed by a LinkedIn slug
-    "own_correspondence": 0.8,   # provenance-confirmed source
-    "unknown_provenance": 0.5,
+    "own_correspondence": 0.8,   # sequenced outreach log (Reachouts_)
+    "own_database": 0.65,        # own contact database, less curated (Lead_list)
+    "unknown_provenance": 0.5,   # origin not established
 }
 DELIVERY_CONFIRMED_MULTIPLIER = 1.5
 
