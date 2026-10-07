@@ -176,7 +176,9 @@ def temporal_split(samples: list[Sample]) -> tuple[str, str] | None:
     Clean means: there is a cutoff date such that every sample strictly after it
     supports one pattern P_new, and no sample on or before it supports P_new.
     Samples whose date is assumed rather than observed must support P_new, since
-    they cannot be placed on either side of the cutoff with evidence.
+    they cannot be placed on either side of the cutoff with evidence. Every
+    sample before the cutoff must be explained: an unexplained address is not
+    evidence of an older convention.
     """
     dated = [s for s in samples if s.dated]
     undated = [s for s in samples if not s.dated]
@@ -184,6 +186,8 @@ def temporal_split(samples: list[Sample]) -> tuple[str, str] | None:
     for cut in dates[:-1]:
         after = [s for s in dated if s.newest > cut]
         before = [s for s in dated if s.newest <= cut]
+        if not all(s.patterns for s in before):
+            continue
         common = set.intersection(*(set(s.patterns) for s in after))
         for new in sorted(common, key=lambda p: -library.get(p).prior):
             if any(new in s.patterns for s in before):

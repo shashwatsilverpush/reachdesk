@@ -74,6 +74,12 @@ def test_temporal_split_needs_evidence_dates():
     assert tier(samples).tier == "D"
 
 
+def test_unexplained_history_is_not_a_migration():
+    samples = [s("a@x.com", when=OLD), s("b@x.com", when=OLD),
+               s("c@x.com", "first.last", when=NEW), s("d@x.com", "first.last", when=NEW)]
+    assert tier(samples).tier == "D"
+
+
 def test_unexplained_counts_as_dissent(monkeypatch):
     samples = [s("a@x.com", "first.last"), s("b@x.com")]
     assert tier(samples).tier == "D"
