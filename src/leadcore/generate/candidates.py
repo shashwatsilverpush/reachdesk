@@ -3,8 +3,9 @@
 For a target (first, last, domain) whose domain is Tier A-C:
 1. the primary candidate from the domain's dominant pattern;
 2. nickname variants as separate candidates (capped, most common in our corpus first);
-3. collision checks (see collisions.py) block targets whose addresses clash;
-4. survivors are emitted as contacts with origin=generated, canary_status=pending.
+3. for Tier C- firms, a first.last fallback candidate (see config.C_MINUS_FALLBACK_PATTERN);
+4. collision checks (see collisions.py) block targets whose addresses clash;
+5. survivors are emitted as contacts with origin=generated, canary_status=pending.
 """
 
 from __future__ import annotations
@@ -38,7 +39,7 @@ class Target:
 class Candidate:
     target: Target
     address: str
-    kind: str            # primary | nickname
+    kind: str            # primary | nickname | fallback
     first_variant: str
 
 
@@ -108,6 +109,12 @@ def generate(session: Session, targets: list[Target], run_id: int, *, persist: b
             results[t] = GenerationResult(t, "not_generatable", reason=f"domain tier {tier}")
             continue
         cands = candidates_for(t, dp.pattern, name_frequency=freq)
+        if dp.subtier == "C-" and dp.pattern != config.C_MINUS_FALLBACK_PATTERN:
+            # The one address we hold is short and often a founder's: also
+            # offer the most common full-name format, as its own candidate.
+            for c in candidates_for(t, config.C_MINUS_FALLBACK_PATTERN, nickname_limit=0):
+                if all(c.address != x.address for x in cands):
+                    cands.append(Candidate(t, c.address, "fallback", c.first_variant))
         if not cands:
             results[t] = GenerationResult(t, "not_generatable", reason=f"pattern {dp.pattern} needs a surname")
             continue

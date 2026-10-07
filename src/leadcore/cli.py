@@ -47,8 +47,11 @@ def ingest(source: Source = typer.Option(Source.all, "--source")):
     typer.echo(f"contacts: {st.contacts_created} created, {st.contacts_updated} updated")
 
 
-def _tiers_line(c) -> str:
-    return "  ".join(f"{t}={c.get(t, 0)}" for t in "ABCDE") + f"  A/B/C={sum(c.get(t, 0) for t in 'ABC')}"
+def _tiers_line(c, grades=None) -> str:
+    line = "  ".join(f"{t}={c.get(t, 0)}" for t in "ABCDE") + f"  A/B/C={sum(c.get(t, 0) for t in 'ABC')}"
+    if grades:
+        line += f"  (C+={grades.get('C+', 0)} C-={grades.get('C-', 0)})"
+    return line
 
 
 @app.command()
@@ -58,8 +61,9 @@ def infer(rebuild: bool = typer.Option(False, "--rebuild", help="Write a new run
         base_run, base_new, base = pipeline.run_inference(s, use_nicknames=False, rebuild=rebuild)
         nick_run, nick_new, nick = pipeline.run_inference(s, use_nicknames=True, rebuild=rebuild)
         bc, nc = pipeline.tier_counts(s, base_run), pipeline.tier_counts(s, nick_run)
+        ng = pipeline.grade_counts(s, nick_run)
     typer.echo(f"baseline run #{base_run.id}{'' if base_new else ' (unchanged, reused)'}:  {_tiers_line(bc)}")
-    typer.echo(f"nickname run #{nick_run.id}{'' if nick_new else ' (unchanged, reused)'}:  {_tiers_line(nc)}")
+    typer.echo(f"nickname run #{nick_run.id}{'' if nick_new else ' (unchanged, reused)'}:  {_tiers_line(nc, ng)}")
     _delta(base, nick)
 
 
@@ -90,7 +94,7 @@ def generate(domain: str = typer.Option(..., "--domain"), first: str = typer.Opt
         dp = s.scalars(select(DomainPattern).where(DomainPattern.run_id == run.id,
                                                    DomainPattern.domain == domain.lower())).first()
         if dp:
-            typer.echo(f"{dp.domain}: tier {dp.tier}, pattern {dp.pattern}, {dp.sample_count} samples")
+            typer.echo(f"{dp.domain}: tier {dp.grade}, pattern {dp.pattern}, {dp.sample_count} samples")
         [res] = gen(s, [Target(first, last, domain)], run.id, persist=not dry_run)
     typer.echo(f"status: {res.status}" + (f" ({res.reason})" if res.reason else ""))
     for c in res.candidates:

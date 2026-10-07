@@ -29,7 +29,9 @@ from leadcore.report.workbook import HEADER_FILL, HEADER_FONT, TIER_FILLS, worke
 STATUS = {
     "D": ("Conflicting formats", "Which format does this firm use for most staff? Pick it in 'Correct format'."),
     "E": ("No usable names", "Give one known person's full name and work address at this firm."),
-    "C": ("One address only", "Confirm with one more known address, or confirm the format."),
+    "C-": ("One short address only", "Our only address is first@ or initial-based, often a founder's. "
+                                     "Confirm the format staff use."),
+    "C+": ("One address only", "Optional: confirm with one more known address."),
     "B": ("Two agreeing addresses", "Optional spot-check."),
     "A": ("Confirmed", "None: ready to generate."),
 }
@@ -72,7 +74,7 @@ def build(session: Session, run: InferenceRun, path: Path | None = None) -> Path
     samples = inference.build_samples(views, use_nicknames=run.use_nicknames)
     unnamed = _unnamed_addresses(session)
     dps = session.scalars(select(DomainPattern).where(DomainPattern.run_id == run.id)).all()
-    dps.sort(key=lambda d: (PRIORITY[d.tier], -d.contacts_held, d.domain))
+    dps.sort(key=lambda d: (PRIORITY[d.grade], -d.contacts_held, d.domain))
 
     wb = Workbook()
     ws = wb.active
@@ -92,13 +94,13 @@ def build(session: Session, run: InferenceRun, path: Path | None = None) -> Path
     ws.freeze_panes = "B2"
 
     for dp in dps:
-        status, action = STATUS[dp.tier]
+        status, action = STATUS[dp.grade]
         if dp.migrated_from:
             status, action = "Format changed recently", f"Was {dp.migrated_from}; confirm the newer format is current."
         by_format, unexplained = _evidence(samples.get(dp.domain, []))
         nameless = unnamed.get(dp.domain, [])
         ws.append([
-            dp.domain, dp.tier, status, action,
+            dp.domain, dp.grade, status, action,
             dp.pattern if dp.tier != "E" else None,
             worked_example(dp.pattern, dp.domain) if dp.tier in "ABC" else None,
             dp.dominance, dp.sample_count - dp.unexplained_count, dp.contacts_held,
@@ -126,7 +128,7 @@ def build(session: Session, run: InferenceRun, path: Path | None = None) -> Path
     ws.auto_filter.ref = f"A1:{get_column_letter(len(cols))}{last}"
 
     about = wb.create_sheet("About", 0)
-    counts = {t: sum(1 for d in dps if d.tier == t) for t in STATUS}
+    counts = {t: sum(1 for d in dps if d.grade == t) for t in STATUS}
     for row in [
         ("Firm tracker", ""),
         ("What this is", "Every firm we hold contacts for, worst problems first. Yellow columns are for "
@@ -135,7 +137,9 @@ def build(session: Session, run: InferenceRun, path: Path | None = None) -> Path
                    "people use which format."),
         ("Tier E", f"{counts['E']} firms: every address we hold has no usable first name, so no format "
                    "can be learned. One known name + address fixes it."),
-        ("Tier C", f"{counts['C']} firms: format learned from a single address."),
+        ("Tier C-", f"{counts['C-']} firms: one address, and it is short (first@, jdoe@). Right only "
+                    "~44% of the time in validation; generation also offers first.last."),
+        ("Tier C+", f"{counts['C+']} firms: one address in a full-name format. Right ~94% of the time."),
         ("Tier B / A", f"{counts['B']} / {counts['A']} firms: two agreeing / three or more agreeing addresses."),
         ("Agreement", "Share of the firm's address evidence that fits the current format (1 = all)."),
         ("Inference run", f"#{run.id}, nicknames {'on' if run.use_nicknames else 'off'}"),

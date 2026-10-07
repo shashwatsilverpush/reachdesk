@@ -98,3 +98,21 @@ def test_tier_d_and_e_are_not_generatable(session):
     assert res.status == "not_generatable" and "tier D" in res.reason
     [res] = generate(session, [Target("Ann", "Lee", "unknown.com")], run.id)
     assert res.status == "not_generatable"
+
+
+def test_c_minus_firm_also_gets_first_last_fallback(session):
+    run = _setup(session, [rec("hoon@short.com", "Hoon", row=2)])  # founder-style lone address
+    dp = session.scalars(select(DomainPattern).where(DomainPattern.run_id == run.id)).one()
+    assert (dp.tier, dp.subtier, dp.grade) == ("C", "C-", "C-")
+    [res] = generate(session, [Target("Johnny", "Kuo", "short.com")], run.id)
+    kinds = {c.address: c.kind for c in res.candidates}
+    assert kinds["johnny@short.com"] == "primary" and kinds["johnny.kuo@short.com"] == "fallback"
+    stored = {c.email: c.variant_kind for c in session.scalars(select(Contact).where(Contact.origin == Origin.generated))}
+    assert stored["johnny.kuo@short.com"] == "fallback"
+
+
+def test_c_plus_firm_gets_no_fallback(session):
+    run = _setup(session, [rec("jane.doe@full.com", "Jane", row=2)])
+    [res] = generate(session, [Target("Johnny", "Kuo", "full.com")], run.id)
+    assert [c.kind for c in res.candidates] == ["primary"] + ["nickname"] * (len(res.candidates) - 1)
+    assert all(c.kind != "fallback" for c in res.candidates)

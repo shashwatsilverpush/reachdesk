@@ -149,3 +149,14 @@ def test_slug_surname_does_not_block_the_address_reading():
     views = [ObservationView("justine.rigby@o.com", "o.com", "justine.rigby", "Justine", "robinsonsnapshot",
                              NEW, "year", True)]
     assert infer(views, use_nicknames=False, as_of=AS_OF)["o.com"].samples[0].patterns == ("first.last",)
+
+
+@pytest.mark.parametrize("pattern,sub", [("first.last", "C+"), ("lastfirst", "C+"), ("firstlast", "C+"),
+                                         ("first", "C-"), ("flast", "C-"), ("f.last", "C-"), ("firstl", "C-")])
+def test_tier_c_split_by_shape_of_the_single_address(pattern, sub):
+    r = tier([s("a@x.com", pattern)])
+    assert (r.tier, r.subtier) == ("C", sub)
+
+
+def test_only_tier_c_has_a_subtier():
+    assert tier([s("a@x.com", "first.last"), s("b@x.com", "first.last")]).subtier is None

@@ -68,6 +68,12 @@ UNEXPLAINED_IS_DISSENT = True
 
 # --- Generation -----------------------------------------------------------------
 GENERATABLE_TIERS = ("A", "B", "C")
+# Tier C is split by the shape of its single known address. Validation
+# (2026-10-07): 15/16 right when it is a full-name format (C+), 7/16 when it is
+# first@ or initial-based (C-), usually because that one address is a founder's.
+# For C- firms generation adds this fallback format as an extra candidate so
+# the test send can decide between them.
+C_MINUS_FALLBACK_PATTERN = "first.last"
 # Cap on nickname variants emitted per target (ordered by corpus frequency).
 NICKNAME_GENERATION_LIMIT = 4
 

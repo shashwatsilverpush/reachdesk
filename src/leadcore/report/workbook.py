@@ -73,6 +73,9 @@ def summary_rows(session: Session, run: InferenceRun) -> list[tuple]:
     tiers = Counter(dict(session.execute(select(DomainPattern.tier, func.count())
                                          .where(DomainPattern.run_id == run.id)
                                          .group_by(DomainPattern.tier)).all()))
+    from leadcore.pipeline import grade_counts
+
+    grades = grade_counts(session, run)
     dominant = Counter(dict(session.execute(
         select(DomainPattern.pattern, func.count())
         .where(DomainPattern.run_id == run.id, DomainPattern.tier.in_(config.GENERATABLE_TIERS))
@@ -91,6 +94,7 @@ def summary_rows(session: Session, run: InferenceRun) -> list[tuple]:
         (None, None),
         ("Inference run", f"#{run.id}  nicknames={'on' if run.use_nicknames else 'off'}  as_of={run.config.get('as_of')}"),
         *[(f"Tier {t}", tiers.get(t, 0)) for t in "ABCDE"],
+        *[(f"  of which {g}", grades.get(g, 0)) for g in ("C+", "C-")],
         ("Generatable (A/B/C)", sum(tiers.get(t, 0) for t in config.GENERATABLE_TIERS)),
         (None, None),
         ("Dominant conventions (Tier A-C domains)", None),
@@ -123,7 +127,7 @@ def build(session: Session, run: InferenceRun, path: Path | None = None) -> Path
         note = dp.note or ""
         if dp.migrated_from:
             note = f"migrated from {dp.migrated_from}"
-        ws.append([dp.domain, dp.tier, dp.pattern if dp.tier in "ABC" else (dp.pattern and f"({dp.pattern})"),
+        ws.append([dp.domain, dp.grade, dp.pattern if dp.tier in "ABC" else (dp.pattern and f"({dp.pattern})"),
                    worked_example(dp.pattern, dp.domain) if dp.tier in "ABC" else "",
                    dp.sample_count, dp.unexplained_count, dp.dominance, _seen(dp.patterns_seen),
                    dp.contacts_held, dp.evidence_email, note])

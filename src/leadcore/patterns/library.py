@@ -34,6 +34,11 @@ class Pattern:
         return any(t in ("L", "l") for t in self.template)
 
     @property
+    def is_full_name(self) -> bool:
+        """Uses both the whole first name and the whole surname (first.last, lastfirst...)."""
+        return "F" in self.template and "L" in self.template
+
+    @property
     def needs_first(self) -> bool:
         return any(t in ("F", "f") for t in self.template)
 

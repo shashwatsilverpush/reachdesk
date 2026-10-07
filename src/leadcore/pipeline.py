@@ -268,7 +268,7 @@ def run_inference(session: Session, *, use_nicknames: bool = True, rebuild: bool
             sample_count=r.sample_count, weighted_support=r.weighted_support,
             dominance=r.dominance, patterns_seen=r.patterns_seen,
             unexplained_count=r.unexplained_count, newest_sample_at=r.newest_sample_at,
-            migrated_from=r.migrated_from, evidence_email=r.evidence_email,
+            migrated_from=r.migrated_from, subtier=r.subtier, evidence_email=r.evidence_email,
             contacts_held=held.get(r.domain, 0), note=r.note,
         )
         for r in results.values()
@@ -308,3 +308,12 @@ def tier_map(session: Session, run: InferenceRun) -> dict[str, str]:
     return dict(session.execute(
         select(DomainPattern.domain, DomainPattern.tier).where(DomainPattern.run_id == run.id)
     ).all())
+
+
+def grade_counts(session: Session, run: InferenceRun) -> Counter:
+    """Tier counts with Tier C split into C+ and C-."""
+    rows = session.execute(
+        select(DomainPattern.tier, DomainPattern.subtier, func.count()).where(DomainPattern.run_id == run.id)
+        .group_by(DomainPattern.tier, DomainPattern.subtier)
+    ).all()
+    return Counter({(sub or tier): n for tier, sub, n in rows})

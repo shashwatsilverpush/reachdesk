@@ -142,6 +142,17 @@ Effect on the 51 validated firms: 7 wrong formats corrected, 6 moved to Tier D (
 generated), 0 previously-correct firms got worse. **These firms are now training data:** any future
 accuracy check must use fresh firms.
 
+### Tier C split (C+ / C-)
+
+Tier C is split by the shape of its single known address (`domain_patterns.subtier`):
+
+- **C+**: the address is a full-name format (`first.last`, `firstlast`, `lastfirst`, ...). 94% right in validation.
+- **C-**: the address is `first@` or initial-based (`jdoe@`, `j.doe@`, `janed@`). 44% right; it is usually a founder's.
+
+For C- firms, `generate` adds a `first.last` candidate (`variant_kind = fallback`, see
+`config.C_MINUS_FALLBACK_PATTERN`) next to the inferred one, so the test send decides between them.
+The firm tracker lists C- right after D and E. Reports and `leadcore infer` show both counts.
+
 ## Known limitations
 
 - Temporal splits rest on year-granularity dates (14 domains). Several have a single sample on the

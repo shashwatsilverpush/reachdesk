@@ -133,6 +133,12 @@ class DomainPattern(Base):
     unexplained_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     newest_sample_at: Mapped[date | None] = mapped_column(Date)
     migrated_from: Mapped[str | None] = mapped_column(String(32))
+    subtier: Mapped[str | None] = mapped_column(String(4))
+
+    @property
+    def grade(self) -> str:
+        """Tier with the C+/C- split applied."""
+        return self.subtier or self.tier
     evidence_email: Mapped[str | None] = mapped_column(String(320))
     contacts_held: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     note: Mapped[str | None] = mapped_column(String(255))

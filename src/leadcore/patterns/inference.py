@@ -18,7 +18,7 @@ Tiering (sample counts are distinct usable addresses; weights decide dominance):
   A  >= 3 samples, one pattern carries >= DOMINANCE_SHARE of weight, newest < 2y
   B  2 samples that agree; or the A case with a stale newest sample;
      or a D whose conflict is a clean temporal split (convention migration)
-  C  1 sample
+  C  1 sample; sub-tier C+ if that address is a full-name format, else C-
   D  samples support conflicting patterns
   E  no usable samples
 """
@@ -101,6 +101,7 @@ class DomainResult:
     unexplained_count: int
     newest_sample_at: date | None
     migrated_from: str | None = None
+    subtier: str | None = None             # C+ / C- for Tier C, else None
     evidence_email: str | None = None
     note: str | None = None
     samples: list[Sample] = field(default_factory=list, repr=False)
@@ -262,7 +263,8 @@ def tier_domain(domain: str, samples: list[Sample], *, as_of: date | None = None
 
     if len(counted) == 1:
         note = "ambiguous single sample" if len(usable[0].patterns) > 1 else None
-        return result("C", lead, share, note=note)
+        sub = "C+" if library.get(lead).is_full_name else "C-"
+        return result("C", lead, share, note=note, subtier=sub)
     if len(counted) == 2:
         if share >= 1.0 - 1e-9:
             return result("B", lead, share)
