@@ -53,6 +53,11 @@ TIER_A_MAX_AGE_YEARS = 2.0
 # A pattern is "dominant" when it carries at least this share of the domain's
 # total sample weight. Below it, the domain is a conflict (Tier D).
 DOMINANCE_SHARE = 0.75
+# An address with a usable first name that no pattern explains counts as
+# dissent: it adds to the sample count and to the total weight without
+# supporting any pattern. Conservative: a domain is not called consistent
+# while it holds addresses we cannot account for. False = ignore them.
+UNEXPLAINED_IS_DISSENT = True
 
 # --- Generation -----------------------------------------------------------------
 GENERATABLE_TIERS = ("A", "B", "C")

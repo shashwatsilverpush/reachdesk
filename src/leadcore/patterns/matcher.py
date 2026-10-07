@@ -142,19 +142,50 @@ def consistent(first: str, last: str | None, local: str, *, use_nicknames: bool 
     return out
 
 
-def best(found: list[Match]) -> list[Match]:
-    """The maximally specific subset; non-nickname readings beat nickname ones at equal score."""
+def _top(found: list[Match]) -> list[Match]:
     if not found:
         return []
     top = max(m.specificity for m in found)
-    winners = [m for m in found if m.specificity == top]
-    if any(not m.via_nickname for m in winners):
-        winners = [m for m in winners if not m.via_nickname]
-    return winners
+    return [m for m in found if m.specificity == top]
+
+
+# A plain reading that explains only the first initial ("nate" -> n + ate)
+# is weak enough for a nickname reading to replace it.
+_WEAK_SPECIFICITY = 1
+# ...but only a nickname reading that accounts for at least this many characters.
+_MIN_NICKNAME_SPECIFICITY = 3
+
+
+def best(found: list[Match]) -> list[Match]:
+    """The best explanation(s).
+
+    Nickname readings exist to rescue mismatches, not to override good plain
+    readings. So they are used only when the plain reading explains nothing,
+    or explains just the initial and the nickname reading is substantial:
+
+        Nathan + nate     -> first   (plain reading was flast with surname "ate")
+        Robert + bob.smith -> first.last (no plain reading)
+        Will   + williams -> firstlast  (plain reading stands; not firstl via William)
+    """
+    plain = _top([m for m in found if not m.via_nickname])
+    nick = _top([m for m in found if m.via_nickname])
+    if not plain:
+        return nick
+    if nick and plain[0].specificity <= _WEAK_SPECIFICITY:
+        better = [m for m in nick if m.specificity >= _MIN_NICKNAME_SPECIFICITY]
+        if better:
+            return better
+    return plain
 
 
 def match_detail(name: str | None, local: str, *, last: str | None = None,
                  use_nicknames: bool = False) -> list[Match]:
+    return list(_match_detail(name, local, last, use_nicknames))
+
+
+@lru_cache(maxsize=200_000)
+def _match_detail(name: str | None, local: str, last: str | None,
+                  use_nicknames: bool) -> tuple[Match, ...]:
     """Best explanation(s) across every interpretation of a display name.
 
     Interpretations are ordered most-likely first (see parse_display_name). At
@@ -166,11 +197,11 @@ def match_detail(name: str | None, local: str, *, last: str | None = None,
         for m in best(consistent(interp.first, interp.last, local, use_nicknames=use_nicknames)):
             ranked.append((i, m))
     if not ranked:
-        return []
+        return ()
     top = best([m for _, m in ranked])
     top_ids = {id(m) for m in top}
     first_rank = min(i for i, m in ranked if id(m) in top_ids)
-    return [m for i, m in ranked if id(m) in top_ids and i == first_rank]
+    return tuple(m for i, m in ranked if id(m) in top_ids and i == first_rank)
 
 
 def matches(first: str, last: str | None, local: str, *, use_nicknames: bool = False) -> list[str]:

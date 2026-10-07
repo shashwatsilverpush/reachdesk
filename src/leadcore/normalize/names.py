@@ -217,3 +217,42 @@ def parse_display_name(name: str | None, last: str | None = None) -> list[NameIn
     # A compound given name with no surname ("Mary Ann").
     out.append(_interp(" ".join(toks), None, reading="compound_given"))
     return out
+
+
+def linkedin_surname(url: str | None, first: str | None) -> str | None:
+    """Surname from a LinkedIn profile slug, only when the slug confirms the first name.
+
+    ``/in/alex-mora-92742a11b/``        + Alex     -> mora
+    ``/in/deya-narv%C3%A1ez-2b649739/`` + Deya     -> narvaez
+    ``/in/harrisonweinhold/``           + Harrison -> weinhold
+    ``/in/valenciadepaz/``              + Rommel   -> None (slug does not start with the name)
+    """
+    from urllib.parse import unquote
+
+    from leadcore.normalize.nicknames import expand
+
+    if not url or not first:
+        return None
+    m = re.search(r"linkedin\.com/(?:in|pub)/([^/?#]+)", str(url), re.I)
+    if not m:
+        return None
+    pieces = (_alnum(fold(p)) for p in re.split(r"[-_]", unquote(m.group(1))))
+    # Drop empty pieces and any carrying digits (the trailing profile id).
+    parts = [p for p in pieces if p and not re.search(r"\d", p)]
+    if not parts:
+        return None
+    firsts = set()
+    for v in given_variants(first):
+        firsts |= expand(v)
+    if len(parts) >= 2:
+        if parts[0] in firsts:
+            rest = [p for p in parts[1:] if len(p) > 1] or parts[1:]
+            return " ".join(rest) if rest and len(rest[-1]) > 1 else None
+        if parts[-1] in firsts and len(parts[0]) > 1:
+            return parts[0]  # surname-first slug
+        return None
+    single = parts[0]
+    for f in sorted(firsts, key=len, reverse=True):
+        if single.startswith(f) and len(single) - len(f) >= 2:
+            return single[len(f):]
+    return None
