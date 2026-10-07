@@ -27,6 +27,8 @@ class RawRecord:
     observed_at_precision: str = "unknown"
     provenance_confirmed: bool = False
     extra: dict = field(default_factory=dict)
+    last_name_raw: str | None = None
+    delivery_confirmed: bool = False
 
 
 def obs_key(email: str | None, source_file: str, row_index: int) -> str:

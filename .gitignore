@@ -5,3 +5,4 @@ __pycache__/
 .pytest_cache/
 data/out/
 *.db
+data/raw/apollo_*.csv

@@ -18,6 +18,8 @@ VENDORED = Path(__file__).resolve().parent / "data"
 
 REACHOUTS_FILE = DATA_RAW / "Reachouts_.xlsx"
 LEADLIST_FILE = DATA_RAW / "Lead_list.xlsx"
+# Verified addresses revealed through Apollo (optional; skipped if absent).
+APOLLO_FILE = DATA_RAW / "apollo_verified.csv"
 
 DB_URL = os.environ.get("LEADCORE_DB_URL", f"sqlite:///{ROOT / 'leadcore.db'}")
 
@@ -37,15 +39,16 @@ AS_OF: date | None = date(2026, 10, 7)
 # --- Provenance ---------------------------------------------------------------
 # Both files come from our own systems: Reachouts_ is the sequenced outreach
 # log, Lead_list is an export of our own (less curated) contact database.
-SOURCE_PROVENANCE_CONFIRMED = {"reachouts": True, "leadlist": True}
+SOURCE_PROVENANCE_CONFIRMED = {"reachouts": True, "leadlist": True, "apollo": True}
 # Confidence class a provenance-confirmed source contributes to sample weight.
-SOURCE_CLASS = {"reachouts": "own_correspondence", "leadlist": "own_database"}
+SOURCE_CLASS = {"reachouts": "own_correspondence", "leadlist": "own_database", "apollo": "verified_provider"}
 
 # --- Sample weighting -----------------------------------------------------------
 RECENCY_HALF_LIFE_YEARS = 3.0
 SOURCE_WEIGHTS = {
-    "linkedin_confirmed": 1.0,   # surname independently confirmed by a LinkedIn slug
+    "linkedin_confirmed": 1.0,   # surname independently confirmed (LinkedIn slug or provider record)
     "own_correspondence": 0.8,   # sequenced outreach log (Reachouts_)
+    "verified_provider": 0.8,    # address verified by a data provider (Apollo)
     "own_database": 0.65,        # own contact database, less curated (Lead_list)
     "unknown_provenance": 0.5,   # origin not established
 }

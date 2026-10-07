@@ -78,6 +78,7 @@ class EmailObservation(Base):
     domain: Mapped[str | None] = mapped_column(String(255), index=True)
 
     first_name_raw: Mapped[str | None] = mapped_column(String(255))
+    last_name_raw: Mapped[str | None] = mapped_column(String(255))
     stated_domain: Mapped[str | None] = mapped_column(String(255))
     company_name_raw: Mapped[str | None] = mapped_column(String(255))
     linkedin_url: Mapped[str | None] = mapped_column(String(512))

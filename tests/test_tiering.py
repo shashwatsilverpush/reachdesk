@@ -92,7 +92,7 @@ def test_recency_half_life():
     assert recency_weight(AS_OF, AS_OF) == 1.0
 
 
-def _view(email, first, when=NEW, linkedin=None, confirmed=True):
+def _view(email, first, when=NEW, linkedin=None, confirmed=True):  # linkedin -> known_surname
     local, domain = email.split("@")
     return ObservationView(email, domain, local, first, linkedin, when, "year", confirmed)
 
@@ -125,3 +125,27 @@ def test_source_class_by_file():
     classes = {x.email: x.source_class for x in infer(views, use_nicknames=False, as_of=AS_OF)["z.com"].samples}
     assert classes == {"jane.doe@z.com": "own_correspondence", "john.roe@z.com": "own_database",
                        "ann.lee@z.com": "unknown_provenance"}
+
+
+def test_known_surname_blocks_invented_residual_surname():
+    # "phu" for Phuong Doan would read as flast with surname "hu": rejected.
+    views = [ObservationView("phu@v.com", "v.com", "phu", "Phuong", "Doan", NEW, "day", True,
+                             surname_from_provider=True)]
+    [sample] = infer(views, use_nicknames=False, as_of=AS_OF)["v.com"].samples
+    assert sample.patterns == ()
+
+
+def test_known_surname_allows_transliteration_and_truncation():
+    views = [ObservationView("abdallah.khalifh@r.tv", "r.tv", "abdallah.khalifh", "Abdallah", "Khalifeh",
+                             NEW, "day", True, surname_from_provider=True),
+             ObservationView("shahar.st@b.com", "b.com", "shahar.st", "Shahar", "Stein", NEW, "day", True,
+                             surname_from_provider=True)]
+    res = infer(views, use_nicknames=False, as_of=AS_OF)
+    assert res["r.tv"].samples[0].patterns == ("first.last",)
+    assert res["b.com"].samples[0].patterns == ("first.last",)
+
+
+def test_slug_surname_does_not_block_the_address_reading():
+    views = [ObservationView("justine.rigby@o.com", "o.com", "justine.rigby", "Justine", "robinsonsnapshot",
+                             NEW, "year", True)]
+    assert infer(views, use_nicknames=False, as_of=AS_OF)["o.com"].samples[0].patterns == ("first.last",)

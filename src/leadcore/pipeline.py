@@ -18,6 +18,7 @@ from sqlalchemy.orm import Session
 
 from leadcore import config
 from leadcore.ingest import exclusions
+from leadcore.ingest.apollo import ApolloLoader
 from leadcore.ingest.base import Loader, RawRecord, obs_key
 from leadcore.ingest.leadlist import LeadListLoader
 from leadcore.ingest.reachouts import ReachoutsLoader
@@ -27,7 +28,7 @@ from leadcore.normalize.names import linkedin_surname, parse_display_name
 from leadcore.patterns import inference
 from leadcore.patterns.matcher import extract_surname
 
-LOADERS = {"reachouts": ReachoutsLoader, "leadlist": LeadListLoader}
+LOADERS = {"reachouts": ReachoutsLoader, "leadlist": LeadListLoader, "apollo": ApolloLoader}
 # Exclusion reasons that still describe a real business person.
 CONTACT_REASONS = (None, "placeholder_name")
 
@@ -54,6 +55,7 @@ def _to_observation(r: RawRecord) -> EmailObservation:
         local_part=parsed.local if parsed else None,
         domain=parsed.domain if parsed else None,
         first_name_raw=r.first_name_raw,
+        last_name_raw=r.last_name_raw,
         stated_domain=emails.registrable_domain(r.company_raw),
         company_name_raw=r.company_raw,
         linkedin_url=r.linkedin_url,
@@ -67,7 +69,7 @@ def _to_observation(r: RawRecord) -> EmailObservation:
         observed_at=r.observed_at,
         observed_at_precision=r.observed_at_precision,
         provenance_confirmed=r.provenance_confirmed,
-        delivery_confirmed=False,
+        delivery_confirmed=r.delivery_confirmed,
         excluded_reason=reason,
     )
 
@@ -93,6 +95,14 @@ def ingest(session: Session, sources: list[str] | None = None,
     c, u = sync_confirmed_contacts(session)
     stats.contacts_created, stats.contacts_updated = c, u
     return stats
+
+
+def usable_surname(value: str | None) -> str | None:
+    """A provider surname, unless it is masked to an initial ("Tony S")."""
+    if not value:
+        return None
+    v = value.strip().rstrip(".")
+    return v if len(v) > 1 else None
 
 
 def _best_name(obs: list[EmailObservation]) -> str | None:
@@ -123,6 +133,9 @@ def sync_confirmed_contacts(session: Session) -> tuple[int, int]:
         li = next((o.linkedin_surname for o in obs if o.linkedin_surname), None)
         if li:
             last, last_src = li, "linkedin"
+        provider = next((o for o in obs if usable_surname(o.last_name_raw)), None)
+        if provider:
+            last, last_src = usable_surname(provider.last_name_raw), provider.source
         stated = next((o.stated_domain for o in obs if o.stated_domain), None)
         fields = dict(
             domain=obs[0].domain,
@@ -168,7 +181,9 @@ def _views(session: Session) -> tuple[list[inference.ObservationView], set[str]]
         p = emails.parse(o.email)
         views.append(inference.ObservationView(
             email=o.email, domain=o.domain, match_local=p.match_local,
-            first_name=o.first_name_raw, linkedin_surname=o.linkedin_surname,
+            first_name=o.first_name_raw,
+            known_surname=usable_surname(o.last_name_raw) or o.linkedin_surname,
+            surname_from_provider=bool(usable_surname(o.last_name_raw)),
             observed_at=o.observed_at, observed_at_precision=o.observed_at_precision,
             provenance_confirmed=o.provenance_confirmed, delivery_confirmed=o.delivery_confirmed,
             source=o.source,

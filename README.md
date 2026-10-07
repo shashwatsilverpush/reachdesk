@@ -121,6 +121,27 @@ Final totals with nicknames: A 1,150 · B 581 · C 1,620 · D 723 · E 906 · ge
 The two A→D moves are real conflicts the nickname table exposed. For example, `max@` and `nick@` at
 cpmstar.com had been mis-read as `flast` with surnames "ax" and "ick".
 
+## Validation against Apollo (2026-10-07)
+
+Verified addresses revealed through Apollo were compared with the inferred format for sampled firms
+(72 credits; filled sheet in `data/out/validation_sheet_apollo.xlsx`).
+
+| Tier | Format right | Notes |
+|---|---|---|
+| A | 18 / 21 (86%) | misses: a disambiguation suffix, a system alias, a Vietnamese short form |
+| B | 12 / 14 (86%) | |
+| C | 22 / 32 (69%) | **94%** (15/16) when the lone address is a full-name format; **44%** (7/16) when it is `first@` or initial-based (usually a founder's address) |
+
+The 71 verified addresses are now a source (`data/raw/apollo_verified.csv`, `leadcore ingest --source apollo`).
+They are delivery-confirmed unless the domain is catch-all, and their surnames count as known surnames.
+A provider surname is trusted: a fallback reading of the address that invents a different surname
+(`phu@` read as surname "hu" for Phuong Doan) is rejected. A LinkedIn-slug surname is not trusted
+(slugs like `jamesy` are junk), so there the address's own reading wins.
+
+Effect on the 51 validated firms: 7 wrong formats corrected, 6 moved to Tier D (no wrong address
+generated), 0 previously-correct firms got worse. **These firms are now training data:** any future
+accuracy check must use fresh firms.
+
 ## Known limitations
 
 - Temporal splits rest on year-granularity dates (14 domains). Several have a single sample on the

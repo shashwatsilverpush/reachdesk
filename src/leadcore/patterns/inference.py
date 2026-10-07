@@ -27,13 +27,33 @@ from __future__ import annotations
 
 from collections import defaultdict
 from dataclasses import dataclass, field
+from difflib import SequenceMatcher
 from datetime import date
 from typing import Iterable
 
 from leadcore import config
 from leadcore.ingest.exclusions import is_placeholder_name
 from leadcore.patterns import library
+from leadcore.normalize.names import surname_variants
 from leadcore.patterns.matcher import Match, best, match_detail
+
+
+def _compatible_surname(residual: str | None, known: str) -> bool:
+    """Could ``residual`` (read off an address) be a rendering of the known surname?
+
+    Accepts transliterations (khalifh ~ khalifeh), truncations (st <- stein)
+    and parts (dias <- almeidadias); rejects an invented different surname
+    (hu for Doan, enni for Minella).
+    """
+    if not residual:
+        return True  # the reading does not use a surname at all ("first")
+    for v in surname_variants(known):
+        if len(residual) == 1:
+            if v.startswith(residual):
+                return True
+        elif residual in v or SequenceMatcher(None, residual, v).ratio() >= 0.8:
+            return True
+    return False
 
 
 @dataclass(frozen=True)
@@ -44,12 +64,15 @@ class ObservationView:
     domain: str
     match_local: str
     first_name: str | None
-    linkedin_surname: str | None
+    known_surname: str | None       # from a LinkedIn slug or a provider record
     observed_at: date
     observed_at_precision: str
     provenance_confirmed: bool
     delivery_confirmed: bool = False
     source: str | None = None
+    # True when known_surname is a provider record (reliable), False when it
+    # was parsed from a LinkedIn slug (often junk: "jamesy", "robinsonsnapshot").
+    surname_from_provider: bool = False
 
 
 @dataclass
@@ -109,13 +132,17 @@ def build_samples(observations: Iterable[ObservationView], *, use_nicknames: boo
     for o in observations:
         if is_placeholder_name(o.first_name):
             continue
-        linkedin_used = bool(o.linkedin_surname)
-        found = match_detail(o.first_name, o.match_local, last=o.linkedin_surname,
+        linkedin_used = bool(o.known_surname)
+        found = match_detail(o.first_name, o.match_local, last=o.known_surname,
                              use_nicknames=use_nicknames)
         if linkedin_used and not any(m.surname_known for m in found):
-            # LinkedIn surname did not fit the address (name change, wrong
-            # profile): fall back to reading the address on its own.
+            # The known surname did not fit exactly: fall back to reading the
+            # address on its own. A provider surname is trusted, so a reading
+            # that invents a different surname is rejected; a slug surname is
+            # not, so the address's own reading wins.
             found = match_detail(o.first_name, o.match_local, use_nicknames=use_nicknames)
+            if o.surname_from_provider:
+                found = [m for m in found if _compatible_surname(m.surname, o.known_surname)]
             linkedin_used = False
         per_email[o.email].append((o, found, linkedin_used))
         domain_of[o.email] = o.domain
