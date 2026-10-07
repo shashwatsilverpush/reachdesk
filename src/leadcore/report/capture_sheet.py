@@ -19,6 +19,7 @@ from sqlalchemy.orm import Session
 
 from leadcore import config
 from leadcore.models import DomainPattern, InferenceRun
+from leadcore.patterns import library
 from leadcore.report.workbook import HEADER_FILL, HEADER_FONT, worked_example
 
 INPUT_FILL = PatternFill("solid", start_color="FFFF99")
@@ -26,6 +27,30 @@ COMPUTED = ["Tier", "Domain", "Samples", "Inferred pattern", "Worked example", "
 MANUAL = ["Target first name", "Target last name", "Our predicted address",
           "Externally revealed address", "Verdict", "Notes"]
 VERDICTS = ("match", "mismatch", "no-data", "skipped")
+FORMULA_FILL = PatternFill("solid", start_color="E2EFDA")
+_TOKENS = {"F": "{F}", "f": "{f}", "L": "{L}", "l": "{l}"}
+
+
+def excel_template(pattern: str | None) -> str:
+    """Pattern as a brace template ("{F}.{L}") that an Excel formula can fill in.
+
+    Braces never occur in names, so substituting {F} before {f} cannot corrupt
+    a name that happens to contain an "f" or "l".
+    """
+    if not pattern:
+        return ""
+    return "".join(_TOKENS.get(t, t) for t in library.get(pattern).template)
+
+
+def predicted_formula(row: int, first: str, last: str, tpl: str, domain: str) -> str:
+    """Excel formula: predicted address from the entered names (spaces/hyphens dropped)."""
+    fn = f'LOWER(SUBSTITUTE(SUBSTITUTE(TRIM({first}{row})," ",""),"-",""))'
+    ln = f'LOWER(SUBSTITUTE(SUBSTITUTE(TRIM({last}{row})," ",""),"-",""))'
+    body = (f'SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(SUBSTITUTE({tpl}{row},"{{F}}",{fn}),"{{f}}",LEFT({fn},1)),'
+            f'"{{L}}",{ln}),"{{l}}",LEFT({ln},1))')
+    needs_last = f'ISNUMBER(SEARCH("{{L",{tpl}{row}))+ISNUMBER(SEARCH("{{l",{tpl}{row}))'
+    return (f'=IF(OR({first}{row}="",AND({last}{row}="",{needs_last}>0)),"",'
+            f'{body}&"@"&{domain}{row})')
 
 
 def sample_domains(session: Session, run: InferenceRun, per_tier: int, seed: int) -> list[DomainPattern]:
@@ -49,8 +74,8 @@ def build(session: Session, run: InferenceRun, *, per_tier: int | None = None, s
     wb = Workbook()
     ws = wb.active
     ws.title = "Validation"
-    cols = COMPUTED + MANUAL
-    widths = [6, 30, 9, 16, 38, 40, 18, 18, 38, 38, 12, 40]
+    cols = COMPUTED + MANUAL + ["Auto check", "Pattern template"]
+    widths = [6, 30, 9, 16, 38, 40, 18, 18, 38, 38, 12, 40, 12, 14]
     ws.append(cols)
     for i, w in enumerate(widths, 1):
         c = ws.cell(row=1, column=i)
@@ -59,11 +84,22 @@ def build(session: Session, run: InferenceRun, *, per_tier: int | None = None, s
     ws.freeze_panes = "A2"
 
     rows = sample_domains(session, run, per_tier, seed)
+    L = {name: get_column_letter(cols.index(name) + 1) for name in cols}
     for dp in rows:
         ws.append([dp.tier, dp.domain, dp.sample_count, dp.pattern,
-                   worked_example(dp.pattern, dp.domain), dp.evidence_email] + [None] * len(MANUAL))
-        for j in range(len(COMPUTED) + 1, len(cols) + 1):
-            ws.cell(row=ws.max_row, column=j).fill = INPUT_FILL
+                   worked_example(dp.pattern, dp.domain), dp.evidence_email]
+                  + [None] * len(MANUAL) + [None, excel_template(dp.pattern)])
+        r = ws.max_row
+        for name in MANUAL:
+            ws[f"{L[name]}{r}"].fill = INPUT_FILL
+        ws[f"{L['Our predicted address']}{r}"] = predicted_formula(
+            r, L["Target first name"], L["Target last name"], L["Pattern template"], L["Domain"])
+        ws[f"{L['Our predicted address']}{r}"].fill = FORMULA_FILL
+        pred, ext = f"{L['Our predicted address']}{r}", f"{L['Externally revealed address']}{r}"
+        ws[f"{L['Auto check']}{r}"] = (f'=IF(OR({pred}="",{ext}=""),"",'
+                                       f'IF(LOWER(TRIM({ext}))={pred},"match","mismatch"))')
+        ws[f"{L['Auto check']}{r}"].fill = FORMULA_FILL
+    ws.column_dimensions[L["Pattern template"]].hidden = True
 
     last = max(ws.max_row, 2)
     verdict_col = get_column_letter(cols.index("Verdict") + 1)
@@ -80,9 +116,11 @@ def build(session: Session, run: InferenceRun, *, per_tier: int | None = None, s
         ("Nicknames", "on" if run.use_nicknames else "off"),
         ("Per tier", per_tier),
         ("Seed", seed),
-        ("How to use", "For each domain, pick a real person there, enter their name, compute our "
-                       "predicted address from the inferred pattern, look up the address from an "
-                       "external source, and record the verdict."),
+        ("How to use", "For each domain, pick a real person there who is NOT already in our files. "
+                       "Enter their first and last name: 'Our predicted address' fills itself in "
+                       "(green = formula; you may overwrite it). Look the person up in an external "
+                       "source and paste the address they reveal. 'Auto check' compares the two; "
+                       "set Verdict to match / mismatch, or no-data if nothing could be found."),
     ):
         info.append(list(line))
     info["A1"].font = Font(bold=True, size=13)

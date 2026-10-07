@@ -110,6 +110,18 @@ def report_patterns():
         typer.echo(f"wrote {workbook.build(s, run)}")
 
 
+@report_app.command("tracker")
+def report_tracker():
+    """Write the firm tracker: every firm, issues first, with columns for the answers."""
+    from leadcore.report import tracker
+
+    with db.session(STATE["db"]) as s:
+        run = pipeline.current_run(s, use_nicknames=True) or pipeline.current_run(s)
+        if run is None:
+            raise typer.BadParameter("no inference run yet: run `leadcore infer` first")
+        typer.echo(f"wrote {tracker.build(s, run)}")
+
+
 @report_app.command("capture-sheet")
 def report_capture(per_tier: int = typer.Option(config.CAPTURE_SHEET_PER_TIER, "--per-tier"),
                    seed: int = typer.Option(config.CAPTURE_SHEET_SEED, "--seed")):
