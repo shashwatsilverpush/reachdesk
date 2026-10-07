@@ -218,6 +218,46 @@ class GenerationFlag(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
 
+class VerificationResult(Base):
+    """One address's status as returned by an external verification service.
+
+    Append-only like observations: a re-check of the same address on the same
+    day from the same service is idempotent (unique on result_key); a later
+    re-check is a new row, so the history is preserved. The engine reads the
+    latest row per address.
+
+    ``status`` is normalised to: deliverable | undeliverable | catch_all |
+    unknown | no_mx | invalid. The service's own raw label is kept in
+    ``raw_status`` for audit.
+    """
+
+    __tablename__ = "verification_results"
+    __table_args__ = (UniqueConstraint("tenant_id", "result_key", name="uq_result_key"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    tenant_id: Mapped[str | None] = mapped_column(String(64), index=True)
+    result_key: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+
+    email: Mapped[str] = mapped_column(String(320), nullable=False, index=True)
+    domain: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    status: Mapped[str] = mapped_column(String(16), nullable=False, index=True)
+    raw_status: Mapped[str | None] = mapped_column(String(64))
+    catch_all: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    score: Mapped[float | None] = mapped_column(Float)
+
+    service: Mapped[str] = mapped_column(String(32), nullable=False)
+    source_file: Mapped[str | None] = mapped_column(String(255))
+    checked_at: Mapped[date] = mapped_column(Date, nullable=False)
+    extra: Mapped[dict | None] = mapped_column(JSON)
+    imported_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+
+# Normalised verification statuses.
+VERIFY_STATUSES = ("deliverable", "undeliverable", "catch_all", "unknown", "no_mx", "invalid")
+# Statuses that confirm a real mailbox (feed delivery-confirmed evidence).
+VERIFY_CONFIRMED = frozenset({"deliverable"})
+
+
 # --- Append-only guard -----------------------------------------------------------
 
 
@@ -225,18 +265,23 @@ class AppendOnlyViolation(RuntimeError):
     pass
 
 
+# Tables whose rows are immutable facts: no UPDATE, no DELETE from app code.
+APPEND_ONLY = (EmailObservation, VerificationResult)
+_APPEND_ONLY_TABLES = frozenset(m.__tablename__ for m in APPEND_ONLY)
+
+
 @event.listens_for(Session, "before_flush")
 def _block_observation_mutation(session: Session, flush_context, instances) -> None:
     for obj in session.deleted:
-        if isinstance(obj, EmailObservation):
-            raise AppendOnlyViolation("email_observations is append-only: DELETE refused")
+        if isinstance(obj, APPEND_ONLY):
+            raise AppendOnlyViolation(f"{obj.__tablename__} is append-only: DELETE refused")
     for obj in session.dirty:
-        if isinstance(obj, EmailObservation) and session.is_modified(obj, include_collections=False):
-            raise AppendOnlyViolation("email_observations is append-only: UPDATE refused")
+        if isinstance(obj, APPEND_ONLY) and session.is_modified(obj, include_collections=False):
+            raise AppendOnlyViolation(f"{obj.__tablename__} is append-only: UPDATE refused")
 
 
 @event.listens_for(Session, "do_orm_execute")
 def _block_bulk_mutation(state) -> None:
     stmt = state.statement
-    if isinstance(stmt, (Update, Delete)) and stmt.table.name == EmailObservation.__tablename__:
-        raise AppendOnlyViolation("email_observations is append-only: bulk UPDATE/DELETE refused")
+    if isinstance(stmt, (Update, Delete)) and stmt.table.name in _APPEND_ONLY_TABLES:
+        raise AppendOnlyViolation(f"{stmt.table.name} is append-only: bulk UPDATE/DELETE refused")

@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% from "base.html" import grade_pill %}
+{% block title %}leadcore — generate{% endblock %}
+{% block body %}
+<div class="card">
+  <h2>Generate candidate addresses</h2>
+  <form class="row" method="post" action="/generate">
+    <input name="first" value="{{ first }}" placeholder="first name" required>
+    <input name="last" value="{{ last }}" placeholder="last name (optional)">
+    <input name="domain" value="{{ domain }}" placeholder="firm domain, e.g. acme.com" required style="min-width:220px">
+    <button>Generate</button>
+  </form>
+  <p class="muted" style="margin-top:8px">Candidates only. No email is sent and nothing is checked here. Export them on the
+     <a class="link" href="/verify">Verification</a> tab to check with a service.</p>
+</div>
+
+{% if result %}
+<div class="card">
+  <h2>{{ first }} {{ last }} &middot; {{ domain }}</h2>
+  {% if dp %}<p>{{ grade_pill(dp.grade) }} format <code>{{ dp.pattern }}</code></p>{% endif %}
+  <p>Status: <strong>{{ result.status }}</strong>{% if result.reason %} <span class="muted">({{ result.reason }})</span>{% endif %}</p>
+  {% if result.candidates %}
+  <table>
+    <tr><th>Candidate address</th><th>Kind</th><th>Verification</th></tr>
+    {% for c in result.candidates %}
+    <tr>
+      <td class="mono">{{ c.address }}</td>
+      <td>{{ c.kind }}{% if c.kind == 'fallback' %} <span class="muted">(C- safety net)</span>{% endif %}</td>
+      <td>{% set v = verify.get(c.address) %}{% if v %}<strong>{{ v.status }}</strong> <span class="muted">({{ v.service }})</span>{% else %}<span class="muted">unchecked</span>{% endif %}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% endif %}
+  {% for col in result.collisions %}
+    <div class="note">Collision ({{ col.kind }}): {{ col.address }} is already used{% if col.observed_name %} by {{ col.observed_name }}{% endif %} — blocked.</div>
+  {% endfor %}
+</div>
+{% endif %}
+{% endblock %}

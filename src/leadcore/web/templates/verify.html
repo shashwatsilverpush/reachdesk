@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}leadcore — verification{% endblock %}
+{% block body %}
+{% if msg %}<div class="note">{{ msg }}</div>{% endif %}
+
+<div class="card">
+  <h2>How verification works here</h2>
+  <p class="muted">leadcore does not check addresses itself. You run candidate addresses through an external
+  verification service (ZeroBounce, NeverBounce, MillionVerifier, Bouncer, Apollo, …), then import the
+  results here. A <code>deliverable</code> result becomes delivery-confirmed evidence and sharpens the firm's
+  pattern; an <code>undeliverable</code> one is dropped from inference; <code>catch_all</code> is recorded but proves nothing.</p>
+  <ol class="muted">
+    <li><a class="link" href="/verify/export">Export candidates to verify (CSV)</a> — generated addresses not yet checked.</li>
+    <li>Run that CSV through your verification service and download its results.</li>
+    <li>Import the results below, then re-run <code>leadcore infer</code> (or it re-runs on next infer).</li>
+  </ol>
+</div>
+
+<div class="card">
+  <h2>Import results</h2>
+  <form class="row" method="post" action="/verify/import" enctype="multipart/form-data">
+    <input type="file" name="file" accept=".csv" required>
+    <select name="service">
+      {% for s in services %}<option value="{{ s }}">{{ s }}</option>{% endfor %}
+    </select>
+    <button>Import</button>
+  </form>
+  <p class="muted" style="margin-top:8px">Pick the service that produced the file so its columns and status words map correctly.
+     Unknown layouts: use <code>generic</code> (expects <code>email</code>, <code>status</code> columns).</p>
+</div>
+
+<div class="card">
+  <h2>Stored results</h2>
+  {% if summ.addresses %}
+    <p>{{ summ.rows_stored }} rows · {{ summ.addresses }} addresses · services: {{ summ.services|join(', ') }}</p>
+    <table><tr>{% for s, n in summ.by_status.items() %}<th>{{ s }}</th>{% endfor %}</tr>
+      <tr>{% for s, n in summ.by_status.items() %}<td>{{ n }}</td>{% endfor %}</tr></table>
+  {% else %}<p class="muted">No results imported yet.</p>{% endif %}
+</div>
+
+{% if recent %}
+<div class="card">
+  <h2>Recent imports</h2>
+  <table>
+    <tr><th>Email</th><th>Status</th><th>Raw</th><th>Service</th><th>Checked</th></tr>
+    {% for r in recent %}
+    <tr><td class="mono">{{ r.email }}</td><td><strong>{{ r.status }}</strong></td>
+        <td class="muted">{{ r.raw_status or '' }}</td><td>{{ r.service }}</td><td class="muted">{{ r.checked_at }}</td></tr>
+    {% endfor %}
+  </table>
+</div>
+{% endif %}
+{% endblock %}

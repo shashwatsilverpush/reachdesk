@@ -168,6 +168,9 @@ def sync_confirmed_contacts(session: Session) -> tuple[int, int]:
 
 
 def _views(session: Session) -> tuple[list[inference.ObservationView], set[str]]:
+    from leadcore.verification import latest_status
+
+    verify = latest_status(session)
     views, domains = [], set()
     rows = session.execute(
         select(EmailObservation).where(EmailObservation.email.is_not(None))
@@ -178,6 +181,13 @@ def _views(session: Session) -> tuple[list[inference.ObservationView], set[str]]
             domains.add(o.domain)
         if o.excluded_reason is not None:
             continue
+        # An external verification overrides the observation's own flag: a
+        # proven-undeliverable address is a wrong guess and must not seed a
+        # pattern; a proven-deliverable one is delivery-confirmed evidence.
+        vr = verify.get(o.email)
+        if vr is not None and vr.status == "undeliverable":
+            continue
+        delivery_confirmed = o.delivery_confirmed or (vr is not None and vr.status == "deliverable")
         p = emails.parse(o.email)
         views.append(inference.ObservationView(
             email=o.email, domain=o.domain, match_local=p.match_local,
@@ -185,7 +195,7 @@ def _views(session: Session) -> tuple[list[inference.ObservationView], set[str]]
             known_surname=usable_surname(o.last_name_raw) or o.linkedin_surname,
             surname_from_provider=bool(usable_surname(o.last_name_raw)),
             observed_at=o.observed_at, observed_at_precision=o.observed_at_precision,
-            provenance_confirmed=o.provenance_confirmed, delivery_confirmed=o.delivery_confirmed,
+            provenance_confirmed=o.provenance_confirmed, delivery_confirmed=delivery_confirmed,
             source=o.source,
         ))
     return views, domains
@@ -225,11 +235,18 @@ def engine_version() -> str:
 
 
 def _fingerprint(session: Session, use_nicknames: bool) -> str:
+    from leadcore.models import VerificationResult
+
     keys = session.scalars(select(EmailObservation.obs_key).order_by(EmailObservation.obs_key)).all()
     h = hashlib.sha256()
     h.update(engine_version().encode())
     for k in keys:
         h.update(k.encode())
+    # Verification results change which addresses seed inference, so they are
+    # part of the fingerprint: an import makes `infer` build a fresh run.
+    for rk in session.scalars(select(VerificationResult.result_key)
+                              .order_by(VerificationResult.result_key)):
+        h.update(rk.encode())
     h.update(json.dumps({"nick": use_nicknames, **tunables()}, sort_keys=True).encode())
     return h.hexdigest()
 

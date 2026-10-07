@@ -12,7 +12,9 @@ from leadcore.models import Contact, DomainPattern, EmailObservation, Origin
 
 app = typer.Typer(no_args_is_help=True, add_completion=False, help="Contact data foundation and pattern engine.")
 report_app = typer.Typer(no_args_is_help=True, help="Write report artefacts to data/out/.")
+verify_app = typer.Typer(no_args_is_help=True, help="Import external verification results; export candidates.")
 app.add_typer(report_app, name="report")
+app.add_typer(verify_app, name="verify")
 
 STATE: dict[str, str | None] = {"db": None}
 
@@ -140,6 +142,66 @@ def report_capture(per_tier: int = typer.Option(config.CAPTURE_SHEET_PER_TIER, "
         typer.echo(f"wrote {capture_sheet.build(s, run, per_tier=per_tier, seed=seed)}")
 
 
+@verify_app.command("import")
+def verify_import(
+    file: str = typer.Argument(..., help="Verification results CSV from an external service."),
+    service: str = typer.Option("generic", "--service", help="zerobounce|neverbounce|millionverifier|bouncer|apollo|generic"),
+    checked: str = typer.Option(None, "--date", help="Check date YYYY-MM-DD (default: today)."),
+    reinfer: bool = typer.Option(False, "--reinfer", help="Re-run inference after import."),
+):
+    """Import results from an external verification service (idempotent)."""
+    from datetime import date as _date
+    from pathlib import Path
+
+    from leadcore import verification
+
+    content = Path(file).read_text(encoding="utf-8")
+    when = _date.fromisoformat(checked) if checked else None
+    with db.session(STATE["db"]) as s:
+        st = verification.import_results(s, content, service=service, checked_at=when,
+                                         source_file=Path(file).name)
+        typer.echo(f"{st.rows} rows: {st.imported} imported, {st.already_present} already present, "
+                   f"{st.skipped_invalid} skipped")
+        typer.echo("  by status: " + ", ".join(f"{k}={v}" for k, v in sorted(st.by_status.items())))
+        if reinfer:
+            _, created, _ = pipeline.run_inference(s, use_nicknames=True)
+            typer.echo("re-inferred" if created else "inputs unchanged; run reused")
+
+
+@verify_app.command("export")
+def verify_export(
+    out: str = typer.Option(None, "--out", help="Output CSV (default: data/out/candidates_to_verify.csv)."),
+    include_verified: bool = typer.Option(False, "--include-verified"),
+):
+    """Export generated addresses that still need an external check, as a CSV."""
+    from pathlib import Path
+
+    from leadcore import verification
+
+    with db.session(STATE["db"]) as s:
+        run = pipeline.current_run(s, use_nicknames=True) or pipeline.current_run(s)
+        if run is None:
+            raise typer.BadParameter("no inference run yet: run `leadcore infer` first")
+        content, n = verification.export_candidates(s, run, include_verified=include_verified)
+    path = Path(out) if out else config.DATA_OUT / "candidates_to_verify.csv"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(content, encoding="utf-8")
+    typer.echo(f"wrote {n} candidates to {path}")
+
+
+@verify_app.command("status")
+def verify_status():
+    """Show stored verification results by status."""
+    from leadcore import verification
+
+    with db.session(STATE["db"]) as s:
+        summ = verification.summary(s)
+    typer.echo(f"verification rows stored: {summ['rows_stored']}   addresses: {summ['addresses']}")
+    typer.echo(f"services: {', '.join(summ['services']) or 'none'}")
+    for k, v in summ["by_status"].items():
+        typer.echo(f"  {k}: {v}")
+
+
 @app.command()
 def stats():
     """Corpus counts and acceptance-figure comparison (baseline, pre-nickname run)."""
@@ -189,3 +251,18 @@ def stats():
             typer.echo(f"  {k:38} {exp:>8} {got:>10} {diff:+6.1f}%   {'yes' if abs(diff) <= 2 else 'NO'}")
     if nc:
         typer.echo(f"\nwith nickname pass: {_tiers_line(nc)}")
+
+
+@app.command()
+def web(host: str = typer.Option("127.0.0.1", "--host"), port: int = typer.Option(8000, "--port"),
+        reload: bool = typer.Option(False, "--reload")):
+    """Run the local web UI (dashboard, firm lookup, generate, verification import/export)."""
+    import os
+
+    import uvicorn
+
+    if STATE["db"]:
+        os.environ["LEADCORE_DB_URL"] = STATE["db"]
+    db.migrate(STATE["db"])
+    typer.echo(f"leadcore web on http://{host}:{port}  (local use; no authentication)")
+    uvicorn.run("leadcore.web.app:app", host=host, port=port, reload=reload)

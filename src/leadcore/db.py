@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from contextlib import contextmanager
 from pathlib import Path
 
@@ -14,8 +15,13 @@ from leadcore import config
 ALEMBIC_INI = Path(__file__).resolve().parents[2] / "alembic.ini"
 
 
+def default_url() -> str:
+    """The DB URL, read from the environment at call time (not frozen at import)."""
+    return os.environ.get("LEADCORE_DB_URL", config.DB_URL)
+
+
 def engine(url: str | None = None) -> Engine:
-    return create_engine(url or config.DB_URL, future=True)
+    return create_engine(url or default_url(), future=True)
 
 
 def migrate(url: str | None = None) -> None:
@@ -25,7 +31,7 @@ def migrate(url: str | None = None) -> None:
 
     cfg = Config(str(ALEMBIC_INI))
     cfg.set_main_option("script_location", str(ALEMBIC_INI.parent / "alembic"))
-    cfg.set_main_option("sqlalchemy.url", url or config.DB_URL)
+    cfg.set_main_option("sqlalchemy.url", url or default_url())
     command.upgrade(cfg, "head")
 
 

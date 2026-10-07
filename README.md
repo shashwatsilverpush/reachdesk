@@ -22,9 +22,33 @@ leadcore infer [--rebuild]          # baseline pass + nickname pass + delta repo
 leadcore generate --domain verve.com --first Robert --last Smith [--dry-run]
 leadcore report patterns            # data/out/patterns.xlsx
 leadcore report capture-sheet [--per-tier 24] [--seed 7]
+leadcore report tracker             # data/out/firm_tracker.xlsx
 leadcore stats                      # counts + acceptance comparison
+leadcore verify export              # candidates needing an external check -> CSV
+leadcore verify import FILE --service zerobounce [--reinfer]
+leadcore verify status              # stored verification results by status
+leadcore web [--host 127.0.0.1] [--port 8000]   # local web UI
 pytest                              # LEADCORE_INTEGRATION=1 also runs the real-file test
 ```
+
+## Web UI
+
+`leadcore web` serves a local dashboard (FastAPI, server-rendered, no build step, no auth — bind to
+127.0.0.1 only): tier counts incl. C+/C-, firm lookup, candidate generation, the Apollo validation
+table, and the verification workflow below. It renders what the engine computes and runs no email
+checks of its own.
+
+## External verification
+
+leadcore does **not** check mailboxes itself. The loop is: `verify export` writes the generated
+addresses that still need checking as a CSV; you run that CSV through a third-party verification
+service (ZeroBounce, NeverBounce, MillionVerifier, Bouncer, Apollo, …) and download its results;
+`verify import` records them. Column layouts and status words are mapped per service
+(`verification.SERVICE_PRESETS` / `STATUS_WORDS`); unknown layouts use `--service generic`
+(`email`, `status` columns). A `deliverable` result becomes delivery-confirmed evidence that sharpens
+the firm's pattern; an `undeliverable` one is dropped from inference; `catch_all` is recorded but
+proves nothing. Results are append-only and the inference fingerprint includes them, so a re-infer
+after an import builds a fresh run.
 
 ## Layout
 

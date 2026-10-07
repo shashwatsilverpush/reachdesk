@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% from "base.html" import grade_pill %}
+{% block title %}leadcore — dashboard{% endblock %}
+{% block body %}
+{% if not run %}
+  <div class="card"><p>No inference run yet. Run <code>leadcore ingest</code> then <code>leadcore infer</code>.</p></div>
+{% else %}
+<div class="card">
+  <h2>Firms by tier</h2>
+  <div class="grid">
+    {% for t, n in tiers.items() %}
+      <div class="tile"><div class="n">{{ n }}</div><div class="l">{{ grade_pill(t) }} {{
+        {'A':'confirmed','B':'two agree','C+':'one full-name addr','C-':'one short addr','D':'conflict','E':'no names'}[t] }}</div></div>
+    {% endfor %}
+  </div>
+  <p class="muted" style="margin-top:12px">Generatable (A/B/C): <strong>{{ generatable }}</strong> &nbsp;·&nbsp;
+     run #{{ run.id }}, nicknames {{ 'on' if run.use_nicknames else 'off' }}, as of {{ run.config.get('as_of') }}</p>
+</div>
+
+<div class="grid">
+  <div class="tile"><div class="n">{{ "{:,}".format(contacts) }}</div><div class="l">confirmed contacts</div></div>
+  <div class="tile"><div class="n">{{ "{:,}".format(sendable) }}</div><div class="l">sendable</div></div>
+  <div class="tile"><div class="n">{{ "{:,}".format(generated) }}</div><div class="l">generated</div></div>
+  <div class="tile"><div class="n">{{ "{:,}".format(obs) }}</div><div class="l">observations</div></div>
+</div>
+
+<div class="card" style="margin-top:18px">
+  <h2>Sources</h2>
+  <table><tr><th>source</th><th>observations</th></tr>
+    {% for src, n in by_source.items() %}<tr><td>{{ src }}</td><td>{{ "{:,}".format(n) }}</td></tr>{% endfor %}
+  </table>
+</div>
+
+<div class="card">
+  <h2>Verification</h2>
+  {% if vsumm.addresses %}
+    <p>{{ vsumm.addresses }} addresses checked via {{ vsumm.services|join(', ') }}.</p>
+    <table><tr>{% for s, n in vsumm.by_status.items() %}<th>{{ s }}</th>{% endfor %}</tr>
+      <tr>{% for s, n in vsumm.by_status.items() %}<td>{{ n }}</td>{% endfor %}</tr></table>
+  {% else %}
+    <p class="muted">No external verification results imported yet. See the <a class="link" href="/verify">Verification</a> tab.</p>
+  {% endif %}
+</div>
+{% endif %}
+{% endblock %}

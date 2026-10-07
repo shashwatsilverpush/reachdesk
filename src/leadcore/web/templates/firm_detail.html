@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% from "base.html" import grade_pill %}
+{% block title %}{{ domain }} — leadcore{% endblock %}
+{% block body %}
+<div class="card">
+  <h2>{{ domain }}</h2>
+  {% if dp %}
+    <p>{{ grade_pill(dp.grade) }}
+       {% if dp.pattern %}&nbsp; format <code>{{ dp.pattern }}</code> &nbsp; e.g. <span class="mono muted">{{ dp.example }}</span>{% endif %}</p>
+    <p class="muted">{{ dp.samples }} usable samples · {{ dp.contacts }} contacts held
+       {% if dp.note %} · {{ dp.note }}{% endif %}</p>
+    {% if dp.seen %}<p class="muted">patterns seen: {% for p, c in dp.seen.items() %}<code>{{ p }}</code>×{{ c }} {% endfor %}</p>{% endif %}
+    {% if dp.grade == 'C-' %}<div class="note">One short address only, often a founder's. Generation also offers the first.last fallback.</div>{% endif %}
+  {% else %}
+    <p class="muted">No inferred pattern for this domain.</p>
+  {% endif %}
+  <p style="margin-top:12px"><a class="link" href="/generate?domain={{ domain }}">Generate an address for someone at {{ domain }} →</a></p>
+</div>
+<div class="card">
+  <h2>Contacts held ({{ contacts|length }})</h2>
+  <table>
+    <tr><th>Email</th><th>Name</th><th>Origin</th><th>Verification</th></tr>
+    {% for c in contacts %}
+    <tr>
+      <td class="mono">{{ c.email }}</td>
+      <td>{{ c.first_name or '' }} {{ c.last_name or '' }}</td>
+      <td>{{ c.origin.value }}{% if c.origin.value == 'generated' %} <span class="muted">({{ c.variant_kind }}, {{ c.canary_status.value }})</span>{% endif %}</td>
+      <td>{% set v = verify.get(c.email) %}{% if v %}<strong>{{ v.status }}</strong> <span class="muted">({{ v.service }})</span>{% else %}<span class="muted">—</span>{% endif %}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% if not contacts %}<p class="muted">No contacts stored for this domain.</p>{% endif %}
+</div>
+{% endblock %}

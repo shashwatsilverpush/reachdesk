@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% from "base.html" import grade_pill %}
+{% block title %}leadcore — firms{% endblock %}
+{% block body %}
+<div class="card">
+  <form class="row" method="get" action="/firms">
+    <input name="q" value="{{ q }}" placeholder="search domain…" style="min-width:240px">
+    <select name="tier">
+      <option value="">any tier</option>
+      {% for t in ['A','B','C+','C-','D','E'] %}<option value="{{ t }}" {{ 'selected' if tier==t }}>{{ t }}</option>{% endfor %}
+    </select>
+    <button>Search</button>
+    <span class="muted">{{ "{:,}".format(total) }} firms{% if rows|length < total %} (showing {{ rows|length }}){% endif %}</span>
+  </form>
+</div>
+<div class="card">
+  <table>
+    <tr><th>Firm</th><th>Tier</th><th>Format</th><th>Example</th><th>Samples</th><th>Held</th><th>Evidence</th></tr>
+    {% for r in rows %}
+    <tr>
+      <td><a class="link" href="/firms/{{ r.domain }}">{{ r.domain }}</a></td>
+      <td>{{ grade_pill(r.grade) }}</td>
+      <td class="mono">{{ r.pattern or '—' }}</td>
+      <td class="mono muted">{{ r.example }}</td>
+      <td>{{ r.samples }}</td>
+      <td>{{ r.contacts }}</td>
+      <td class="mono muted">{{ r.evidence or '' }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% if not rows %}<p class="muted">No firms match.</p>{% endif %}
+</div>
+{% endblock %}
