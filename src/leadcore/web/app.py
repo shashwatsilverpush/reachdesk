@@ -43,7 +43,7 @@ try:
     from email_verifier.pipeline import verify_email as smtp_verify
     from email_verifier.ms_probe import is_m365_mx, m365_pattern_search
     from email_verifier.dnsx import get_mx_hosts_cached
-    from email_verifier.ext_verify import ext_verify
+    from email_verifier.ext_verify import ext_verify, ext_verify_patterns, get_credits
     HAS_EMAIL_VERIFIER = True
 except ImportError:
     HAS_EMAIL_VERIFIER = False
@@ -292,7 +292,7 @@ def linkedin_lookup_endpoint(url: str = Query("")):
 def generate_form(request: Request):
     return _page(request, "generate.html", result=None, first="", last="", domain="",
                  linkedin_url="", has_smtp_verify=HAS_EMAIL_VERIFIER, live_verify={},
-                 pattern_hits=[])
+                 pattern_hits=[], best_hit=None, ext_credit_info=None)
 
 
 @app.post("/generate", response_class=HTMLResponse)
@@ -314,12 +314,14 @@ def generate_run(request: Request, first: str = Form(""), last: str = Form(""),
         return _page(request, "generate.html", result=None, first=first, last=last,
                      domain=domain, linkedin_url=linkedin_url,
                      has_smtp_verify=HAS_EMAIL_VERIFIER, live_verify={},
+                     pattern_hits=[], best_hit=None, ext_credit_info=None,
                      error="Could not extract a name. Enter the name manually.")
 
     if not domain.strip():
         return _page(request, "generate.html", result=None, first=first, last=last,
                      domain=domain, linkedin_url=linkedin_url,
                      has_smtp_verify=HAS_EMAIL_VERIFIER, live_verify={},
+                     pattern_hits=[], best_hit=None, ext_credit_info=None,
                      error="Could not detect the firm domain. Enter it manually.")
 
     live_verify: dict[str, dict] = {}
@@ -335,6 +337,7 @@ def generate_run(request: Request, first: str = Form(""), last: str = Form(""),
         verify = verification.latest_status(s, [c.address for c in (result.candidates if result else [])])
 
     pattern_hits: list[dict] = []
+    ext_credit_info: dict | None = None
     not_generatable = result and result.status == "not_generatable"
 
     if not_generatable and HAS_EMAIL_VERIFIER and last.strip():
@@ -363,15 +366,15 @@ def generate_run(request: Request, first: str = Form(""), last: str = Form(""),
                     "exists": True if d["verdict"] == "valid" else
                               (False if d["verdict"] == "invalid" else None),
                 })
-            if pattern_hits and all(h["exists"] is None for h in pattern_hits):
-                for h in pattern_hits:
-                    ev = ext_verify(h["email"], timeout=15)
-                    if ev.status == "valid":
-                        h["exists"] = True
-                        h["ext_service"] = ev.service
-                    elif ev.status == "invalid":
-                        h["exists"] = False
-                        h["ext_service"] = ev.service
+            any_rejected = any(h["exists"] is False for h in pattern_hits)
+            all_unknown = all(h["exists"] is None for h in pattern_hits)
+            smtp_unreliable = not any_rejected and not all_unknown
+            if pattern_hits and (all_unknown or smtp_unreliable):
+                if smtp_unreliable:
+                    for h in pattern_hits:
+                        if h["exists"] is True:
+                            h["exists"] = None
+                ext_credit_info = ext_verify_patterns(pattern_hits, timeout=15)
 
     elif verify_now and HAS_EMAIL_VERIFIER and result and result.candidates:
         for c in result.candidates:
@@ -438,27 +441,36 @@ def generate_run(request: Request, first: str = Form(""), last: str = Form(""),
                 for email, label in candidates:
                     if email in already:
                         continue
-                    ev = ext_verify(email, timeout=15)
-                    if ev.status == "valid":
-                        pattern_hits.append({
-                            "email": email, "pattern": label,
-                            "exists": True, "ext_service": ev.service,
-                        })
-                    elif ev.status == "invalid":
-                        pattern_hits.append({
-                            "email": email, "pattern": label,
-                            "exists": False, "ext_service": ev.service,
-                        })
-                    else:
-                        pattern_hits.append({
-                            "email": email, "pattern": label,
-                            "exists": None, "ext_service": ev.service,
-                        })
+                    pattern_hits.append({
+                        "email": email, "pattern": label, "exists": None,
+                    })
+                ext_credit_info = ext_verify_patterns(pattern_hits, timeout=15)
+
+    best_hit = None
+    if pattern_hits:
+        from email_verifier.ms_probe import PATTERN_SPECIFICITY
+        for h in pattern_hits:
+            h["specificity"] = PATTERN_SPECIFICITY.get(h["pattern"], 0)
+        confirmed = [h for h in pattern_hits if h.get("exists") is True]
+        if confirmed:
+            confirmed.sort(key=lambda h: -h["specificity"])
+            best_hit = confirmed[0]
+            max_spec = best_hit["specificity"]
+            if max_spec >= 3:
+                best_hit["confidence"] = "high"
+                best_hit["confidence_note"] = "Uses full first + last name — unique to this person."
+            elif max_spec == 2:
+                best_hit["confidence"] = "medium"
+                best_hit["confidence_note"] = "Uses a partial name — likely correct but could match another person with similar name parts."
+            else:
+                best_hit["confidence"] = "low"
+                best_hit["confidence_note"] = "Only generic patterns matched (last name, initials). These may belong to a different person at this company."
 
     return _page(request, "generate.html", result=result, dp=_firm_row(dp) if dp else None,
                  first=first, last=last, domain=domain, linkedin_url=linkedin_url, verify=verify,
                  has_smtp_verify=HAS_EMAIL_VERIFIER, live_verify=live_verify,
-                 pattern_hits=pattern_hits)
+                 pattern_hits=pattern_hits, best_hit=best_hit,
+                 ext_credit_info=ext_credit_info)
 
 
 @app.get("/verify", response_class=HTMLResponse)
@@ -519,7 +531,8 @@ def validation(request: Request):
 def _read_validation(path: Path):
     if not path.exists():
         return [], {}
-    from collections import Counter
+
+    from leadcore.patterns import library
 
     from openpyxl import load_workbook
     ws = load_workbook(path, read_only=True)["Validation"]
@@ -529,7 +542,23 @@ def _read_validation(path: Path):
         if header is None:
             header = list(r)
             continue
-        rows.append(dict(zip(header, r)))
+        row = dict(zip(header, r))
+        pred = row.get("Our predicted address", "")
+        if not pred or (isinstance(pred, str) and pred.startswith("=")):
+            pat = row.get("Inferred pattern", "")
+            first = row.get("Target first name", "")
+            last = row.get("Target last name", "")
+            domain = row.get("Domain", "")
+            p = library.get(pat) if pat else None
+            if p and first and domain:
+                local = p.render(str(first).lower().strip(), str(last).lower().strip() if last else None)
+                if local:
+                    row["Our predicted address"] = f"{local}@{domain}"
+                else:
+                    row["Our predicted address"] = ""
+            else:
+                row["Our predicted address"] = ""
+        rows.append(row)
     by_tier = {}
     for t in ("A", "B", "C"):
         checked = [x for x in rows if x.get("Tier") == t and x.get("Verdict") in ("match", "mismatch")]

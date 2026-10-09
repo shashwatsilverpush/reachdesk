@@ -55,6 +55,14 @@ def check_m365_account(email: str, timeout: int = 10) -> bool | None:
     return None
 
 
+PATTERN_SPECIFICITY: dict[str, int] = {
+    "first.last": 3, "firstlast": 3, "first_last": 3, "first-last": 3,
+    "last.first": 3, "lastfirst": 3, "last_first": 3,
+    "flast": 2, "f.last": 2, "firstl": 2, "first.l": 2, "lastf": 2,
+    "first": 1, "last": 1, "fl": 1,
+}
+
+
 def _generate_patterns(first: str, last: str, domain: str) -> list[tuple[str, str]]:
     """Generate (email, pattern_label) pairs for common corporate formats."""
     f = first.lower().strip()

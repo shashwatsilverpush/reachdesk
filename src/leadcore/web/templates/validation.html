@@ -2,6 +2,17 @@
 {% from "base.html" import grade_pill %}
 {% block title %}leadcore — validation{% endblock %}
 {% block body %}
+<style>
+  .val-table { table-layout:fixed; width:100%; }
+  .val-table th, .val-table td { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .val-table th:nth-child(1), .val-table td:nth-child(1) { width:50px; }
+  .val-table th:nth-child(2), .val-table td:nth-child(2) { width:18%; }
+  .val-table th:nth-child(3), .val-table td:nth-child(3) { width:10%; }
+  .val-table th:nth-child(4), .val-table td:nth-child(4) { width:26%; }
+  .val-table th:nth-child(5), .val-table td:nth-child(5) { width:26%; }
+  .val-table th:nth-child(6), .val-table td:nth-child(6) { width:80px; }
+  .val-table td:hover { overflow:visible; white-space:normal; word-break:break-all; }
+</style>
 {% if not exists %}
   <div class="card"><p class="muted">No validation sheet found. Run the Apollo validation first
   (<code>data/out/validation_sheet_apollo.xlsx</code>).</p></div>
@@ -19,7 +30,7 @@
 </div>
 <div class="card">
   <h2>Checked firms ({{ rows|length }})</h2>
-  <table>
+  <table class="val-table">
     <tr><th>Tier</th><th>Firm</th><th>Format</th><th>Our prediction</th><th>Revealed</th><th>Verdict</th></tr>
     {% for r in rows %}
     <tr>
