@@ -6,3 +6,4 @@ __pycache__/
 data/out/
 *.db
 data/raw/apollo_*.csv
+.env

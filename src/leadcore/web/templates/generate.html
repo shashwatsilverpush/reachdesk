@@ -2,16 +2,45 @@
 {% from "base.html" import grade_pill %}
 {% block title %}leadcore — generate{% endblock %}
 {% block body %}
+<style>
+  .v-valid   { color:#2e7d32; font-weight:600; }
+  .v-invalid { color:#c62828; font-weight:600; }
+  .v-unknown { color:#e65100; font-weight:600; }
+  .v-risky   { color:#f9a825; font-weight:600; }
+  .li-row    { display:flex; gap:10px; align-items:center; }
+  .li-row input { flex:1; min-width:260px; }
+  .or-divider { text-align:center; color:#888; font-size:13px; margin:8px 0; }
+  .li-status { font-size:12px; margin-top:6px; min-height:18px; }
+  .li-status.loading { color:#1565c0; }
+  .li-status.ok      { color:#2e7d32; }
+  .li-status.partial { color:#e65100; }
+  .li-status.err     { color:#c62828; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .spinner { display:inline-block; width:14px; height:14px; border:2px solid #1565c0;
+             border-top-color:transparent; border-radius:50%; animation:spin .6s linear infinite;
+             vertical-align:middle; margin-right:6px; }
+</style>
 <div class="card">
   <h2>Generate candidate addresses</h2>
-  <form class="row" method="post" action="/generate">
-    <input name="first" value="{{ first }}" placeholder="first name" required>
-    <input name="last" value="{{ last }}" placeholder="last name (optional)">
-    <input name="domain" value="{{ domain }}" placeholder="firm domain, e.g. acme.com" required style="min-width:220px">
-    <button>Generate</button>
+  <form method="post" action="/generate" id="gen-form" style="display:flex; flex-direction:column; gap:0;">
+    <div class="li-row">
+      <input name="linkedin_url" id="linkedin_url" value="{{ linkedin_url }}"
+             placeholder="LinkedIn profile URL" style="min-width:360px">
+      <button type="button" id="lookup-btn" style="white-space:nowrap">Lookup</button>
+    </div>
+    <div class="li-status" id="li-status"></div>
+    <div class="or-divider">— or enter manually —</div>
+    <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+      <input name="first" id="first" value="{{ first }}" placeholder="first name">
+      <input name="last" id="last" value="{{ last }}" placeholder="last name">
+      <input name="domain" id="domain" value="{{ domain }}" placeholder="firm domain, e.g. acme.com" style="min-width:220px">
+      <input type="hidden" name="verify_now" id="verify_now" value="">
+      <button type="submit">Generate</button>
+    </div>
   </form>
-  <p class="muted" style="margin-top:8px">Candidates only. No email is sent and nothing is checked here. Export them on the
-     <a class="link" href="/verify">Verification</a> tab to check with a service.</p>
+  {% if error %}<div class="note" style="color:#c62828; margin-top:10px;">{{ error }}</div>{% endif %}
+  <p class="muted" style="margin-top:8px">Paste a LinkedIn URL and click <strong>Lookup</strong> to auto-fill name &amp; domain.
+     Then hit <strong>Generate</strong> to produce candidate addresses based on the firm's email pattern.</p>
 </div>
 
 {% if result %}
@@ -21,19 +50,129 @@
   <p>Status: <strong>{{ result.status }}</strong>{% if result.reason %} <span class="muted">({{ result.reason }})</span>{% endif %}</p>
   {% if result.candidates %}
   <table>
-    <tr><th>Candidate address</th><th>Kind</th><th>Verification</th></tr>
+    <tr><th>Candidate address</th><th>Kind</th><th>Ext. verification</th>{% if live_verify %}<th>Live SMTP check</th>{% endif %}</tr>
     {% for c in result.candidates %}
     <tr>
       <td class="mono">{{ c.address }}</td>
       <td>{{ c.kind }}{% if c.kind == 'fallback' %} <span class="muted">(C- safety net)</span>{% endif %}</td>
       <td>{% set v = verify.get(c.address) %}{% if v %}<strong>{{ v.status }}</strong> <span class="muted">({{ v.service }})</span>{% else %}<span class="muted">unchecked</span>{% endif %}</td>
+      {% if live_verify %}
+      <td>
+        {% set lv = live_verify.get(c.address) %}
+        {% if lv %}
+          <span class="v-{{ lv.verdict }}">{{ lv.verdict }}</span>
+          <span class="muted mono" style="font-size:12px">{{ lv.reason }}</span>
+          {% if lv.evidence.mx %}<br><span class="muted" style="font-size:11px">MX: {{ lv.evidence.mx[0] }}</span>{% endif %}
+        {% else %}-{% endif %}
+      </td>
+      {% endif %}
     </tr>
     {% endfor %}
   </table>
+  {% if has_smtp_verify and not live_verify %}
+  <div style="margin-top:12px;">
+    <button type="button" onclick="document.getElementById('verify_now').value='1'; document.getElementById('gen-form').submit();">
+      Verify these candidates
+    </button>
+    <span class="muted" style="font-size:12px; margin-left:8px;">Runs live SMTP probes — takes a few seconds per address</span>
+  </div>
+  {% endif %}
+  {% if live_verify %}
+  <p class="muted" style="margin-top:8px; font-size:12px;">Live SMTP results are not stored. Big providers (Gmail, Outlook, Yahoo) hide mailbox existence.</p>
+  {% endif %}
   {% endif %}
   {% for col in result.collisions %}
     <div class="note">Collision ({{ col.kind }}): {{ col.address }} is already used{% if col.observed_name %} by {{ col.observed_name }}{% endif %} — blocked.</div>
   {% endfor %}
 </div>
+
+{% if pattern_hits %}
+<div class="card">
+  <h2>Pattern search</h2>
+  <p class="muted" style="margin-bottom:10px;">Primary candidate unconfirmed — scanned all common email patterns to find a match.</p>
+  <table>
+    <tr><th>Email</th><th>Pattern</th><th>Exists</th><th>Source</th></tr>
+    {% for h in pattern_hits %}
+    <tr{% if h.exists %} style="background:#e8f5e9;"{% endif %}>
+      <td class="mono">{{ h.email }}</td>
+      <td class="muted">{{ h.pattern }}</td>
+      <td>
+        {% if h.exists == true %}<span class="v-valid">found</span>
+        {% elif h.exists == false %}<span class="muted">no</span>
+        {% else %}<span class="v-unknown">?</span>{% endif %}
+      </td>
+      <td class="muted" style="font-size:12px;">{{ h.get('ext_service', '') }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% set found = pattern_hits | selectattr("exists") | list %}
+  {% if found %}
+  <p style="margin-top:10px; font-weight:600; color:#2e7d32;">
+    Likely address: <code>{{ found[0].email }}</code> ({{ found[0].pattern }} pattern)
+  </p>
+  {% else %}
+  <p class="muted" style="margin-top:8px;">No pattern confirmed — this domain may be catch-all (accepts all addresses), or the person uses a non-standard format.</p>
+  {% endif %}
+</div>
 {% endif %}
+
+{% endif %}
+
+<script>
+var lookupBtn = document.getElementById('lookup-btn');
+var liInput   = document.getElementById('linkedin_url');
+var statusEl  = document.getElementById('li-status');
+var firstEl   = document.getElementById('first');
+var lastEl    = document.getElementById('last');
+var domainEl  = document.getElementById('domain');
+
+function doLookup() {
+  var url = liInput.value.trim();
+  if (!url) return;
+  if (url.indexOf('/in/') === -1) { statusEl.className='li-status err'; statusEl.textContent='Not a LinkedIn profile URL'; return; }
+
+  lookupBtn.disabled = true;
+  statusEl.className = 'li-status loading';
+  statusEl.innerHTML = '<span class="spinner"></span>Looking up profile…';
+
+  fetch('/generate/linkedin-lookup?url=' + encodeURIComponent(url))
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      if (d.error) { statusEl.className='li-status err'; statusEl.textContent=d.error; return; }
+      if (d.first) firstEl.value = d.first;
+      if (d.last)  lastEl.value  = d.last;
+      if (d.domain) domainEl.value = d.domain;
+
+      var parts = [];
+      if (d.first) parts.push(d.first + (d.last ? ' ' + d.last : ''));
+      if (d.role) parts.push(d.role);
+      if (d.company) parts.push(d.company);
+      if (d.domain) parts.push(d.domain);
+
+      var warnHtml = '';
+      if (d.warnings && d.warnings.length) {
+        warnHtml = d.warnings.map(function(w){ return '<div style="color:#e65100; font-size:12px; margin-top:4px;">⚠ ' + w + '</div>'; }).join('');
+      }
+
+      if (d.company && d.domain) {
+        statusEl.className = 'li-status ok';
+        statusEl.innerHTML = '✔ ' + parts.join(' · ') + (d.source === 'apollo' ? ' <span style="color:#888; font-size:11px;">(via Apollo)</span>' : '') + warnHtml;
+      } else if (d.first) {
+        statusEl.className = 'li-status partial';
+        var msg = '⚠ Got name: ' + d.first + (d.last ? ' ' + d.last : '');
+        if (d.company) msg += ' at ' + d.company + ' — enter domain manually.';
+        else msg += '. Company not found — enter domain manually.';
+        statusEl.innerHTML = msg + warnHtml;
+      } else {
+        statusEl.className = 'li-status err';
+        statusEl.textContent = 'Could not extract profile info — enter details manually.';
+      }
+    })
+    .catch(function(){ statusEl.className='li-status err'; statusEl.textContent='Lookup failed — enter details manually.'; })
+    .finally(function(){ lookupBtn.disabled = false; });
+}
+
+lookupBtn.addEventListener('click', doLookup);
+liInput.addEventListener('keydown', function(e){ if (e.key === 'Enter') { e.preventDefault(); doLookup(); } });
+</script>
 {% endblock %}

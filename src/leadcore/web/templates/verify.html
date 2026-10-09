@@ -1,13 +1,21 @@
 {% extends "base.html" %}
 {% block title %}leadcore — verification{% endblock %}
 {% block body %}
+<style>
+  .v-valid   { color:#2e7d32; font-weight:600; }
+  .v-invalid { color:#c62828; font-weight:600; }
+  .v-unknown { color:#e65100; font-weight:600; }
+  .v-risky   { color:#f9a825; font-weight:600; }
+  textarea.smtp-input { width:100%; min-height:100px; font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:13px; resize:vertical; padding:10px; border:1px solid var(--line); border-radius:8px; }
+  .flag-pill { display:inline-block; padding:0 6px; border-radius:10px; font-size:11px; font-weight:600; background:#e8eaf6; color:#283593; margin-right:3px; }
+</style>
 {% if msg %}<div class="note">{{ msg }}</div>{% endif %}
 
 <div class="card">
   <h2>How verification works here</h2>
-  <p class="muted">leadcore does not check addresses itself. You run candidate addresses through an external
-  verification service (ZeroBounce, NeverBounce, MillionVerifier, Bouncer, Apollo, …), then import the
-  results here. A <code>deliverable</code> result becomes delivery-confirmed evidence and sharpens the firm's
+  <p class="muted">You can verify addresses two ways: <strong>locally</strong> with the built-in SMTP pipeline (below),
+  or through an <strong>external service</strong> (ZeroBounce, NeverBounce, etc.) by importing results further down.
+  A <code>deliverable</code> result becomes delivery-confirmed evidence and sharpens the firm's
   pattern; an <code>undeliverable</code> one is dropped from inference; <code>catch_all</code> is recorded but proves nothing.</p>
   <ol class="muted">
     <li><a class="link" href="/verify/export">Export candidates to verify (CSV)</a> — generated addresses not yet checked.</li>
@@ -15,6 +23,38 @@
     <li>Import the results below, then re-run <code>leadcore infer</code> (or it re-runs on next infer).</li>
   </ol>
 </div>
+
+{% if has_smtp_verify %}
+<div class="card">
+  <h2>Verify now (local SMTP check)</h2>
+  <form method="post" action="/verify/check">
+    <textarea name="emails" class="smtp-input" placeholder="Paste email addresses, one per line&#10;alice@acme.com&#10;bob@corp.net">{{ smtp_input }}</textarea>
+    <div class="row" style="display:flex; gap:10px; align-items:center; margin-top:10px;">
+      <label class="muted" style="font-size:13px;">Timeout <input name="timeout" type="number" value="10" min="3" max="30" style="width:60px"> s</label>
+      <button>Verify</button>
+      <span class="muted" style="font-size:12px; margin-left:8px;">Max 50 addresses · one RCPT per connection · polite delays</span>
+    </div>
+  </form>
+  <p class="muted" style="margin-top:8px; font-size:12px;">This runs a local SMTP RCPT TO probe. Big providers (Gmail, Outlook, Yahoo) hide mailbox existence and
+     will return <code>unknown</code>. Results are not stored — use an external service for production-grade verification.</p>
+
+  {% if smtp_results %}
+  <table style="margin-top:14px;">
+    <tr><th>Email</th><th>Verdict</th><th>Reason</th><th>MX</th><th>Flags</th><th>Suggestion</th></tr>
+    {% for r in smtp_results %}
+    <tr>
+      <td class="mono">{{ r.email }}</td>
+      <td><span class="v-{{ r.verdict }}">{{ r.verdict }}</span></td>
+      <td class="mono muted">{{ r.reason }}</td>
+      <td class="mono muted">{{ r.evidence.mx[0] if r.evidence.mx else '-' }}</td>
+      <td>{% for f in r.flags %}<span class="flag-pill">{{ f }}</span>{% endfor %}{% if not r.flags %}-{% endif %}</td>
+      <td>{% if r.suggestion %}<span class="mono" style="color:var(--b)">{{ r.suggestion }}</span>{% else %}-{% endif %}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% endif %}
+</div>
+{% endif %}
 
 <div class="card">
   <h2>Import results</h2>
