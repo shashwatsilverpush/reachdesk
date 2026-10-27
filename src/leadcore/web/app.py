@@ -557,8 +557,14 @@ def sso_callback(request: Request, code: str = "", state: str = "", error: str =
     cookie = request.cookies.get("sso_state", "")
     state_data = read_sso_state_cookie(cookie) if cookie else None
     if not state_data or state_data.get("state") != state:
+        if not cookie:
+            detail = "SSO failed: state cookie missing — your browser may be blocking cookies"
+        elif not state_data:
+            detail = "SSO failed: state cookie expired or invalid — please try again"
+        else:
+            detail = "SSO state mismatch — please try again"
         return TEMPLATES.TemplateResponse(request, "login.html",
-                                          {"error": "SSO state mismatch — please try again", "sso_enabled": SSO_ENABLED})
+                                          {"error": detail, "sso_enabled": SSO_ENABLED})
 
     tokens, token_err = exchange_code(code, state_data["verifier"])
     if not tokens or "access_token" not in tokens:
