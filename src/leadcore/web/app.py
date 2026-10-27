@@ -476,7 +476,8 @@ def login_submit(request: Request, email: str = Form(""), password: str = Form("
                                               {"error": "Account deactivated", "email": email, "sso_enabled": SSO_ENABLED})
         cookie = create_session_cookie(user.id)
     resp = RedirectResponse("/", status_code=303)
-    resp.set_cookie("leadcore_session", cookie, httponly=True, max_age=7 * 86400, samesite="lax")
+    resp.set_cookie("leadcore_session", cookie, httponly=True, max_age=7 * 86400,
+                     samesite="lax", secure=config.SSO_REDIRECT_URI.startswith("https"))
     return resp
 
 
@@ -519,7 +520,8 @@ def register_submit(request: Request, name: str = Form(""), email: str = Form(""
 
     cookie = create_session_cookie(uid)
     resp = RedirectResponse("/", status_code=303)
-    resp.set_cookie("leadcore_session", cookie, httponly=True, max_age=7 * 86400, samesite="lax")
+    resp.set_cookie("leadcore_session", cookie, httponly=True, max_age=7 * 86400,
+                     samesite="lax", secure=config.SSO_REDIRECT_URI.startswith("https"))
     return resp
 
 
@@ -540,8 +542,9 @@ def sso_initiate():
         return RedirectResponse("/login", status_code=302)
     url, state_data = build_authorize_url()
     resp = RedirectResponse(url, status_code=302)
+    _secure = config.SSO_REDIRECT_URI.startswith("https")
     resp.set_cookie("sso_state", create_sso_state_cookie(state_data),
-                     httponly=True, max_age=300, samesite="lax")
+                     httponly=True, max_age=300, samesite="lax", secure=_secure)
     return resp
 
 
@@ -591,7 +594,9 @@ def sso_callback(request: Request, code: str = "", state: str = "", error: str =
 
     session_cookie = create_session_cookie(uid)
     resp = RedirectResponse("/", status_code=303)
-    resp.set_cookie("leadcore_session", session_cookie, httponly=True, max_age=7 * 86400, samesite="lax")
+    _secure = config.SSO_REDIRECT_URI.startswith("https")
+    resp.set_cookie("leadcore_session", session_cookie, httponly=True, max_age=7 * 86400,
+                     samesite="lax", secure=_secure)
     resp.delete_cookie("sso_state")
     return resp
 
