@@ -550,6 +550,16 @@ def sso_initiate():
 
 @app.get("/auth/sso/callback", response_class=HTMLResponse)
 def sso_callback(request: Request, code: str = "", state: str = "", error: str = ""):
+    try:
+        return _sso_callback_inner(request, code, state, error)
+    except Exception as exc:
+        import traceback
+        traceback.print_exc()
+        return TEMPLATES.TemplateResponse(request, "login.html",
+                                          {"error": f"SSO error: {exc}", "sso_enabled": SSO_ENABLED})
+
+
+def _sso_callback_inner(request: Request, code: str, state: str, error: str):
     if error or not code:
         return TEMPLATES.TemplateResponse(request, "login.html",
                                           {"error": f"SSO failed: {error or 'no code returned'}", "sso_enabled": SSO_ENABLED})
