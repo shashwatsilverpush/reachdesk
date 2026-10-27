@@ -1,5 +1,6 @@
-{% extends "base.html" %}
-{% block title %}leadcore — verification{% endblock %}
+{% extends "base_new.html" %}
+{% block title %}Verification — ReachDesk{% endblock %}
+{% block page_title %}Verification{% endblock %}
 {% block body %}
 <style>
   .v-valid   { color:#2e7d32; font-weight:600; }
@@ -27,7 +28,7 @@
 {% if has_smtp_verify %}
 <div class="card">
   <h2>Verify now (local SMTP check)</h2>
-  <form method="post" action="/verify/check">
+  <form method="post" action="/verify/check" id="smtp-form">
     <textarea name="emails" class="smtp-input" placeholder="Paste email addresses, one per line&#10;alice@acme.com&#10;bob@corp.net">{{ smtp_input }}</textarea>
     <div class="row" style="display:flex; gap:10px; align-items:center; margin-top:10px;">
       <label class="muted" style="font-size:13px;">Timeout <input name="timeout" type="number" value="10" min="3" max="30" style="width:60px"> s</label>
@@ -58,7 +59,7 @@
 
 <div class="card">
   <h2>Import results</h2>
-  <form class="row" method="post" action="/verify/import" enctype="multipart/form-data">
+  <form class="row" method="post" action="/verify/import" enctype="multipart/form-data" id="import-form">
     <input type="file" name="file" accept=".csv" required>
     <select name="service">
       {% for s in services %}<option value="{{ s }}">{{ s }}</option>{% endfor %}
@@ -90,4 +91,11 @@
   </table>
 </div>
 {% endif %}
+
+<script>
+var smtpForm = document.getElementById('smtp-form');
+if (smtpForm) withLoader(smtpForm, 'Verifying emails...', 'Running SMTP checks — this may take a few minutes for multiple addresses.');
+var importForm = document.getElementById('import-form');
+if (importForm) withLoader(importForm, 'Importing results...', 'Parsing and storing verification data.');
+</script>
 {% endblock %}

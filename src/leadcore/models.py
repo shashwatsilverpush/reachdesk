@@ -45,6 +45,12 @@ class Base(DeclarativeBase):
     pass
 
 
+class UserRole(str, enum.Enum):
+    admin = "admin"
+    manager = "manager"
+    member = "member"
+
+
 class Origin(str, enum.Enum):
     confirmed = "confirmed"
     generated = "generated"
@@ -200,6 +206,178 @@ def _generated_defaults(mapper, connection, target: Contact) -> None:
             raise ValueError("generated contacts must carry derived_from_pattern_id")
     elif target.derived_from_pattern_id is not None or target.canary_status is not None:
         raise ValueError("confirmed contacts cannot carry generation fields")
+
+
+class LeadStatus(str, enum.Enum):
+    new = "new"
+    contacted = "contacted"
+    following_up = "following_up"
+    replied = "replied"
+    meeting = "meeting"
+    won = "won"
+    lost = "lost"
+
+
+class CRMUser(Base):
+    """A team member who performs outreach."""
+
+    __tablename__ = "crm_users"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    tenant_id: Mapped[str | None] = mapped_column(String(64), index=True)
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    email: Mapped[str] = mapped_column(String(320), nullable=False, unique=True)
+    role: Mapped[str | None] = mapped_column(String(128))
+    active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    password_hash: Mapped[str | None] = mapped_column(String(255))
+    is_admin: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    manager_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("crm_users.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+    manager: Mapped["CRMUser | None"] = relationship("CRMUser", remote_side=[id], foreign_keys=[manager_id])
+    leads: Mapped[list["Lead"]] = relationship(back_populates="assigned_user")
+
+
+class Lead(Base):
+    """A prospect assigned to a user for outreach."""
+
+    __tablename__ = "leads"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    tenant_id: Mapped[str | None] = mapped_column(String(64), index=True)
+    assigned_to: Mapped[int | None] = mapped_column(ForeignKey("crm_users.id"), index=True)
+    contact_id: Mapped[int | None] = mapped_column(ForeignKey("contacts.id"))
+
+    first_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    last_name: Mapped[str | None] = mapped_column(String(255))
+    email: Mapped[str | None] = mapped_column(String(320))
+    domain: Mapped[str | None] = mapped_column(String(255), index=True)
+    company: Mapped[str | None] = mapped_column(String(255))
+    linkedin_url: Mapped[str | None] = mapped_column(String(512))
+    role_title: Mapped[str | None] = mapped_column(String(255))
+    phone: Mapped[str | None] = mapped_column(String(50))
+    country: Mapped[str | None] = mapped_column(String(100))
+
+    status: Mapped[LeadStatus] = mapped_column(
+        _enum(LeadStatus, "lead_status"), nullable=False, default=LeadStatus.new, index=True,
+    )
+    notes: Mapped[str | None] = mapped_column(String(2000))
+    last_activity_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+    assigned_user: Mapped[CRMUser | None] = relationship(back_populates="leads")
+    contact: Mapped[Contact | None] = relationship()
+    lead_sequence: Mapped["LeadSequence | None"] = relationship(back_populates="lead", uselist=False)
+    activities: Mapped[list["LeadActivity"]] = relationship(back_populates="lead", order_by="LeadActivity.created_at.desc()")
+
+
+class MailTemplate(Base):
+    """A reusable email reachout format."""
+
+    __tablename__ = "mail_templates"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    tenant_id: Mapped[str | None] = mapped_column(String(64), index=True)
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("crm_users.id"))
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    subject: Mapped[str] = mapped_column(String(500), nullable=False)
+    body: Mapped[str] = mapped_column(String(10000), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, onupdate=_now)
+
+    owner: Mapped[CRMUser | None] = relationship()
+
+
+class Sequence(Base):
+    """A reusable multi-step email sequence."""
+
+    __tablename__ = "sequences"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    tenant_id: Mapped[str | None] = mapped_column(String(64), index=True)
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    user_id: Mapped[int] = mapped_column(ForeignKey("crm_users.id"), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+    steps: Mapped[list["SequenceStep"]] = relationship(back_populates="sequence", order_by="SequenceStep.step_number")
+    owner: Mapped[CRMUser] = relationship()
+
+
+class SequenceStep(Base):
+    """One step in a sequence."""
+
+    __tablename__ = "sequence_steps"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    sequence_id: Mapped[int] = mapped_column(ForeignKey("sequences.id"), nullable=False)
+    step_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    delay_days: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    subject_template: Mapped[str] = mapped_column(String(500), nullable=False)
+    body_template: Mapped[str] = mapped_column(String(10000), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+    sequence: Mapped[Sequence] = relationship(back_populates="steps")
+
+
+class LeadSequence(Base):
+    """Links a lead to a sequence, tracks progress."""
+
+    __tablename__ = "lead_sequences"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    lead_id: Mapped[int] = mapped_column(ForeignKey("leads.id"), nullable=False, unique=True)
+    sequence_id: Mapped[int] = mapped_column(ForeignKey("sequences.id"), nullable=False)
+    current_step: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+    paused: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+
+    lead: Mapped["Lead"] = relationship(back_populates="lead_sequence")
+    sequence: Mapped[Sequence] = relationship()
+    emails: Mapped[list["SequenceEmail"]] = relationship(back_populates="lead_sequence", order_by="SequenceEmail.id")
+
+
+class SequenceEmailStatus(str, enum.Enum):
+    draft = "draft"
+    approved = "approved"
+    sent = "sent"
+    skipped = "skipped"
+
+
+class SequenceEmail(Base):
+    """One rendered email for a specific lead at a specific step."""
+
+    __tablename__ = "sequence_emails"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    lead_sequence_id: Mapped[int] = mapped_column(ForeignKey("lead_sequences.id"), nullable=False)
+    step_id: Mapped[int] = mapped_column(ForeignKey("sequence_steps.id"), nullable=False)
+    subject: Mapped[str] = mapped_column(String(500), nullable=False)
+    body: Mapped[str] = mapped_column(String(10000), nullable=False)
+    status: Mapped[SequenceEmailStatus] = mapped_column(
+        _enum(SequenceEmailStatus, "seq_email_status"), nullable=False, default=SequenceEmailStatus.draft,
+    )
+    scheduled_for: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+    lead_sequence: Mapped[LeadSequence] = relationship(back_populates="emails")
+    step: Mapped[SequenceStep] = relationship()
+
+
+class LeadActivity(Base):
+    """Lightweight activity log for leads."""
+
+    __tablename__ = "lead_activities"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    lead_id: Mapped[int] = mapped_column(ForeignKey("leads.id"), nullable=False, index=True)
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("crm_users.id"))
+    action: Mapped[str] = mapped_column(String(64), nullable=False)
+    detail: Mapped[str | None] = mapped_column(String(1000))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+    lead: Mapped["Lead"] = relationship(back_populates="activities")
+    user: Mapped[CRMUser | None] = relationship()
 
 
 class GenerationFlag(Base):

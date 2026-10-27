@@ -1,0 +1,84 @@
+{% extends "base_new.html" %}
+{% from "base_new.html" import country_select %}
+{% block title %}New Lead — ReachDesk{% endblock %}
+{% block page_title %}New Lead{% endblock %}
+
+{% block body %}
+<div style="max-width:800px;">
+
+{% if error %}
+<div class="error-note">{{ error|safe }}</div>
+{% endif %}
+
+<!-- ============================================================= -->
+<!-- SECTION 1: Quick Add Lead                                      -->
+<!-- ============================================================= -->
+<div class="card">
+  <h2>Add Lead</h2>
+  <p class="muted" style="font-size:13px; margin-bottom:14px;">Already have the contact's info? Add them directly.</p>
+
+  <form method="post" action="/leads" id="add-lead-form">
+    <div class="grid-2" style="margin-bottom:10px;">
+      <div>
+        <label style="font-size:12px; color:var(--muted); display:block; margin-bottom:2px;">First name *</label>
+        <input name="first_name" required style="width:100%;" placeholder="Jane">
+      </div>
+      <div>
+        <label style="font-size:12px; color:var(--muted); display:block; margin-bottom:2px;">Last name</label>
+        <input name="last_name" style="width:100%;" placeholder="Smith">
+      </div>
+    </div>
+    <div style="margin-bottom:10px;">
+      <label style="font-size:12px; color:var(--muted); display:block; margin-bottom:2px;">Work Email</label>
+      <input name="email" type="email" style="width:100%;" placeholder="jane@acme.com">
+    </div>
+    <div class="grid-2" style="margin-bottom:10px;">
+      <div>
+        <label style="font-size:12px; color:var(--muted); display:block; margin-bottom:2px;">Company</label>
+        <input name="company" style="width:100%;" placeholder="Acme Corp">
+      </div>
+      <div>
+        <label style="font-size:12px; color:var(--muted); display:block; margin-bottom:2px;">Domain</label>
+        <input name="domain" style="width:100%;" placeholder="acme.com">
+      </div>
+    </div>
+    <div style="margin-bottom:10px;">
+      <label style="font-size:12px; color:var(--muted); display:block; margin-bottom:2px;">Role / Title</label>
+      <input name="role_title" style="width:100%;" placeholder="VP of Sales">
+    </div>
+    <div class="grid-2" style="margin-bottom:10px;">
+      <div>
+        <label style="font-size:12px; color:var(--muted); display:block; margin-bottom:2px;">Phone</label>
+        <input name="phone" style="width:100%;" placeholder="+1 555-123-4567">
+      </div>
+      <div>
+        <label style="font-size:12px; color:var(--muted); display:block; margin-bottom:2px;">Country</label>
+        {{ country_select() }}
+      </div>
+    </div>
+    <div class="grid-2" style="margin-bottom:10px;">
+      <div>
+        <label style="font-size:12px; color:var(--muted); display:block; margin-bottom:2px;">LinkedIn URL</label>
+        <input name="linkedin_url" style="width:100%;" placeholder="https://linkedin.com/in/...">
+      </div>
+      <div>
+        <label style="font-size:12px; color:var(--muted); display:block; margin-bottom:2px;">Assign to</label>
+        <select name="assigned_to" style="width:100%;">
+          {% for u in users %}
+          <option value="{{ u.id }}" {{ 'selected' if current_user and u.id == current_user.id }}>{{ u.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+    <div style="margin-bottom:14px;">
+      <label style="font-size:12px; color:var(--muted); display:block; margin-bottom:2px;">Notes</label>
+      <textarea name="notes" rows="2" style="width:100%;" placeholder="Optional notes..."></textarea>
+    </div>
+    <button type="submit">Add Lead</button>
+  </form>
+</div>
+
+<script>
+withLoader(document.getElementById('add-lead-form'), 'Adding lead...', '');
+</script>
+{% endblock %}

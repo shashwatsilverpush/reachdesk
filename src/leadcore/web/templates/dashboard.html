@@ -1,45 +1,151 @@
-{% extends "base.html" %}
-{% from "base.html" import grade_pill %}
-{% block title %}leadcore — dashboard{% endblock %}
+{% extends "base_new.html" %}
+{% block title %}Dashboard — ReachDesk{% endblock %}
+{% block page_title %}Dashboard{% endblock %}
+
 {% block body %}
-{% if not run %}
-  <div class="card"><p>No inference run yet. Run <code>leadcore ingest</code> then <code>leadcore infer</code>.</p></div>
-{% else %}
+<style>
+  .kpi-tile { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:18px 20px; text-align:center; }
+  .kpi-tile .number { font-size:28px; font-weight:800; line-height:1.1; }
+  .kpi-tile .label { font-size:12px; color:var(--muted); margin-top:4px; }
+  .pipeline-row { display:flex; align-items:center; gap:10px; margin-bottom:8px; }
+  .pipeline-label { width:100px; font-size:12px; font-weight:600; text-align:right; white-space:nowrap; }
+  .pipeline-track { flex:1; height:28px; background:#f3f4f6; border-radius:6px; overflow:hidden; }
+  .pipeline-bar { height:100%; border-radius:6px; display:flex; align-items:center; padding-left:8px; min-width:2px; transition:width .3s; }
+  .pipeline-bar span { color:#fff; font-size:11px; font-weight:700; }
+  .chart-wrap { position:relative; max-width:260px; margin:0 auto; }
+</style>
+
+{% set max_count = pipeline.values()|max if pipeline.values()|list else 1 %}
+
+<!-- KPI Tiles -->
+<div class="grid-auto mb-2">
+  <div class="kpi-tile">
+    <div class="number" style="color:var(--ink);">{{ total_leads }}</div>
+    <div class="label">Total Leads</div>
+  </div>
+  <div class="kpi-tile">
+    <div class="number" style="color:var(--s-new);">{{ leads_this_week }}</div>
+    <div class="label">This Week</div>
+  </div>
+  <div class="kpi-tile">
+    <div class="number" style="color:var(--accent);">{{ leads_this_month }}</div>
+    <div class="label">This Month</div>
+  </div>
+  <div class="kpi-tile">
+    <div class="number" style="color:var(--s-won);">{{ pipeline.get('won', 0) }}</div>
+    <div class="label">Won</div>
+  </div>
+  <div class="kpi-tile">
+    <div class="number" style="color:var(--s-lost);">{{ pipeline.get('lost', 0) }}</div>
+    <div class="label">Lost</div>
+  </div>
+</div>
+
+<!-- Pipeline Bars -->
+<div class="card mb-2">
+  <h2>Pipeline</h2>
+  {% for status_val, count in pipeline.items() %}
+  <div class="pipeline-row">
+    <span class="pipeline-label">{{ status_val.replace('_', ' ').title() }}</span>
+    <div class="pipeline-track">
+      <div class="pipeline-bar" style="width:{{ (count / max_count * 100)|round(1) if max_count else 0 }}%; background:var(--s-{{ status_val }});">
+        {% if count %}<span>{{ count }}</span>{% endif %}
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+<!-- Charts row -->
+<div class="grid-2 mb-2">
+  <div class="card">
+    <h2>Leads by Status</h2>
+    <div class="chart-wrap">
+      <canvas id="statusChart"></canvas>
+    </div>
+  </div>
+  <div class="card">
+    <h2>Team Performance</h2>
+    {% if team_stats %}
+    <canvas id="teamChart" style="max-height:260px;"></canvas>
+    {% else %}
+    <p class="muted" style="font-size:13px;">No team members yet.</p>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Activity Feed -->
 <div class="card">
-  <h2>Firms by tier</h2>
-  <div class="grid">
-    {% for t, n in tiers.items() %}
-      <div class="tile"><div class="n">{{ n }}</div><div class="l">{{ grade_pill(t) }} {{
-        {'A':'confirmed','B':'two agree','C+':'one full-name addr','C-':'one short addr','D':'conflict','E':'no names'}[t] }}</div></div>
+  <h2>Recent Activity</h2>
+  {% if activities %}
+  <div style="border-left:2px solid var(--line); margin-left:8px; padding-left:16px;">
+    {% for a in activities %}
+    <div style="margin-bottom:14px; position:relative;">
+      <div style="position:absolute; left:-22px; top:4px; width:10px; height:10px; border-radius:50%; background:var(--accent); border:2px solid var(--card);"></div>
+      <div style="font-size:13px; font-weight:600;">
+        {{ a.action.replace('_', ' ').title() }}
+        {% if a.lead %}<a href="/leads/{{ a.lead_id }}" class="link" style="font-weight:400;"> — {{ a.lead.first_name }} {{ a.lead.last_name or '' }}</a>{% endif %}
+      </div>
+      {% if a.detail %}<div style="font-size:12px; color:var(--muted);">{{ a.detail }}</div>{% endif %}
+      <div style="font-size:11px; color:var(--muted);">
+        {{ a.created_at.strftime('%b %d, %H:%M') if a.created_at else '' }}
+        {% if a.user %} &middot; {{ a.user.name }}{% endif %}
+      </div>
+    </div>
     {% endfor %}
   </div>
-  <p class="muted" style="margin-top:12px">Generatable (A/B/C): <strong>{{ generatable }}</strong> &nbsp;·&nbsp;
-     run #{{ run.id }}, nicknames {{ 'on' if run.use_nicknames else 'off' }}, as of {{ run.config.get('as_of') }}</p>
-</div>
-
-<div class="grid">
-  <div class="tile"><div class="n">{{ "{:,}".format(contacts) }}</div><div class="l">confirmed contacts</div></div>
-  <div class="tile"><div class="n">{{ "{:,}".format(sendable) }}</div><div class="l">sendable</div></div>
-  <div class="tile"><div class="n">{{ "{:,}".format(generated) }}</div><div class="l">generated</div></div>
-  <div class="tile"><div class="n">{{ "{:,}".format(obs) }}</div><div class="l">observations</div></div>
-</div>
-
-<div class="card" style="margin-top:18px">
-  <h2>Sources</h2>
-  <table><tr><th>source</th><th>observations</th></tr>
-    {% for src, n in by_source.items() %}<tr><td>{{ src }}</td><td>{{ "{:,}".format(n) }}</td></tr>{% endfor %}
-  </table>
-</div>
-
-<div class="card">
-  <h2>Verification</h2>
-  {% if vsumm.addresses %}
-    <p>{{ vsumm.addresses }} addresses checked via {{ vsumm.services|join(', ') }}.</p>
-    <table><tr>{% for s, n in vsumm.by_status.items() %}<th>{{ s }}</th>{% endfor %}</tr>
-      <tr>{% for s, n in vsumm.by_status.items() %}<td>{{ n }}</td>{% endfor %}</tr></table>
   {% else %}
-    <p class="muted">No external verification results imported yet. See the <a class="link" href="/verify">Verification</a> tab.</p>
+  <p class="muted" style="font-size:13px;">No activity yet.</p>
   {% endif %}
 </div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script>
+var statusLabels = [{% for s in pipeline %}'{{ s.replace("_"," ").title() }}',{% endfor %}];
+var statusData = [{% for s, c in pipeline.items() %}{{ c }},{% endfor %}];
+var statusColors = ['#2563eb','#c2410c','#a16207','#0e7490','#7c3aed','#16a34a','#dc2626'];
+
+new Chart(document.getElementById('statusChart'), {
+  type: 'doughnut',
+  data: {
+    labels: statusLabels,
+    datasets: [{
+      data: statusData,
+      backgroundColor: statusColors.slice(0, statusLabels.length),
+      borderWidth: 0
+    }]
+  },
+  options: {
+    responsive: true,
+    cutout: '55%',
+    plugins: {
+      legend: { position: 'bottom', labels: { padding: 12, font: { size: 11 } } }
+    }
+  }
+});
+
+{% if team_stats %}
+new Chart(document.getElementById('teamChart'), {
+  type: 'bar',
+  data: {
+    labels: [{% for name, count in team_stats %}'{{ name }}',{% endfor %}],
+    datasets: [{
+      label: 'Leads',
+      data: [{% for name, count in team_stats %}{{ count }},{% endfor %}],
+      backgroundColor: '#1f3864',
+      borderRadius: 4
+    }]
+  },
+  options: {
+    indexAxis: 'y',
+    responsive: true,
+    plugins: { legend: { display: false } },
+    scales: {
+      x: { beginAtZero: true, ticks: { precision: 0 } },
+      y: { grid: { display: false } }
+    }
+  }
+});
 {% endif %}
+</script>
 {% endblock %}

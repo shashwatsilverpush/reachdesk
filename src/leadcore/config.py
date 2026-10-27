@@ -22,6 +22,13 @@ LEADLIST_FILE = DATA_RAW / "Lead_list.xlsx"
 APOLLO_FILE = DATA_RAW / "apollo_verified.csv"
 
 DB_URL = os.environ.get("LEADCORE_DB_URL", f"sqlite:///{ROOT / 'leadcore.db'}")
+SECRET_KEY = os.environ.get("LEADCORE_SECRET_KEY", "dev-change-me-in-production")
+
+# --- SSO (OIDC via auth.silverpush.live) ----------------------------------------
+SSO_ISSUER = "https://auth.silverpush.live"
+SSO_CLIENT_ID = os.environ.get("SSO_CLIENT_ID", "")
+SSO_CLIENT_SECRET = os.environ.get("SSO_CLIENT_SECRET", "")
+SSO_REDIRECT_URI = os.environ.get("SSO_REDIRECT_URI", "http://127.0.0.1:8000/auth/sso/callback")
 
 # --- Observation dating -------------------------------------------------------
 # Neither source has row-level dates. Reachouts sheets are named by year, so a

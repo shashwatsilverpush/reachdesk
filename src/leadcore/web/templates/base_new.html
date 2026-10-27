@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}ReachDesk{% endblock %}</title>
+<style>
+  :root {
+    --bg:#f6f7f9; --card:#fff; --ink:#1f2933; --muted:#6b7280; --line:#e5e7eb;
+    --accent:#1f3864; --accent-light:#2a4a80; --sidebar:#1f2933; --sidebar-text:#cdd7ee;
+    --s-new:#2563eb; --s-contacted:#c2410c; --s-following:#a16207; --s-replied:#0e7490;
+    --s-meeting:#7c3aed; --s-won:#16a34a; --s-lost:#dc2626;
+  }
+  * { box-sizing:border-box; margin:0; }
+  body { font:14px/1.5 -apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--ink); display:flex; min-height:100vh; }
+
+  /* Sidebar */
+  .sidebar { width:220px; background:var(--sidebar); color:var(--sidebar-text); display:flex; flex-direction:column; position:fixed; top:0; left:0; bottom:0; z-index:100; }
+  .sidebar .logo { padding:20px 20px 16px; font-size:18px; font-weight:700; color:#fff; letter-spacing:-.02em; }
+  .sidebar nav { flex:1; padding:0 8px; }
+  .sidebar nav a { display:flex; align-items:center; gap:10px; padding:10px 12px; border-radius:8px; color:var(--sidebar-text); text-decoration:none; font-size:14px; margin-bottom:2px; transition:background .15s; }
+  .sidebar nav a:hover { background:rgba(255,255,255,.08); color:#fff; }
+  .sidebar nav a.active { background:var(--accent); color:#fff; font-weight:600; }
+  .sidebar nav a .icon { width:20px; text-align:center; font-size:16px; }
+  .sidebar .user-area { padding:16px 20px; border-top:1px solid rgba(255,255,255,.1); font-size:13px; }
+  .sidebar .user-area .name { color:#fff; font-weight:600; display:block; margin-bottom:4px; }
+  .sidebar .user-area a { color:var(--sidebar-text); text-decoration:none; font-size:12px; }
+  .sidebar .user-area a:hover { color:#fff; }
+
+  /* Main content */
+  .main { margin-left:220px; flex:1; min-width:0; overflow-x:hidden; }
+  .topbar { padding:16px 28px; border-bottom:1px solid var(--line); background:var(--card); display:flex; align-items:center; justify-content:space-between; }
+  .topbar h1 { font-size:18px; font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .content { padding:24px 28px; }
+
+  /* Cards */
+  .card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:18px 20px; margin-bottom:16px; overflow:visible; }
+  h2 { font-size:15px; font-weight:700; margin:0 0 12px; }
+  h3 { font-size:13px; font-weight:600; margin:0 0 8px; }
+
+  /* Tables */
+  table { width:100%; border-collapse:collapse; font-size:13px; table-layout:fixed; }
+  th, td { text-align:left; padding:8px 10px; border-bottom:1px solid var(--line); vertical-align:top; overflow:hidden; text-overflow:ellipsis; }
+  td.status-cell { overflow:visible; }
+  th { color:var(--muted); font-weight:600; font-size:11px; text-transform:uppercase; letter-spacing:.04em; }
+  tr:hover td { background:#fafbfc; }
+  .truncate { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .break-word { word-break:break-word; }
+
+  /* Status pills */
+  .pill { display:inline-block; padding:2px 10px; border-radius:20px; color:#fff; font-size:11px; font-weight:600; white-space:nowrap; }
+  .s-new { background:var(--s-new); } .s-contacted { background:var(--s-contacted); }
+  .s-following_up { background:var(--s-following); } .s-replied { background:var(--s-replied); }
+  .s-meeting { background:var(--s-meeting); } .s-won { background:var(--s-won); } .s-lost { background:var(--s-lost); }
+
+  /* Tier pills (for pattern info) */
+  .t-A{background:#2e7d32;color:#fff} .t-B{background:#1565c0;color:#fff} .t-Cp{background:#00838f;color:#fff}
+  .t-Cm{background:#ef6c00;color:#fff} .t-D{background:#c62828;color:#fff} .t-E{background:#757575;color:#fff}
+
+  /* Forms */
+  code, .mono { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:12px; word-break:break-all; }
+  input, select, textarea, button { font:inherit; padding:8px 12px; border:1px solid var(--line); border-radius:8px; }
+  input:focus, select:focus, textarea:focus { outline:none; border-color:var(--accent); box-shadow:0 0 0 2px rgba(31,56,100,.12); }
+  textarea { resize:vertical; min-height:80px; }
+  button, .btn { background:var(--accent); color:#fff; border:none; cursor:pointer; font-weight:600; border-radius:8px; padding:8px 16px; font-size:13px; transition:opacity .15s; }
+  button:hover, .btn:hover { opacity:.9; }
+  .btn-danger { background:var(--s-lost); }
+  .btn-secondary { background:#555; }
+  .btn-sm { padding:4px 10px; font-size:12px; }
+  a.link { color:var(--accent); text-decoration:none; } a.link:hover { text-decoration:underline; }
+  .muted { color:var(--muted); }
+  .note { background:#fff8e1; border:1px solid #ffe082; border-radius:8px; padding:10px 14px; font-size:13px; margin-bottom:12px; }
+  .error-note { background:#fce4ec; border:1px solid #ef9a9a; border-radius:8px; padding:10px 14px; font-size:13px; color:#c62828; margin-bottom:12px; }
+
+  /* Grid */
+  .grid-2 { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+  .grid-3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:14px; }
+  .grid-auto { display:grid; grid-template-columns:repeat(auto-fit,minmax(130px,1fr)); gap:12px; }
+  @media (max-width:700px) { .grid-2, .grid-3 { grid-template-columns:1fr; } }
+
+  /* Responsive sidebar */
+  .hamburger { display:none; background:none; border:none; color:var(--ink); font-size:24px; cursor:pointer; padding:4px 8px; }
+  @media (max-width:768px) {
+    .sidebar { transform:translateX(-100%); transition:transform .2s; }
+    .sidebar.open { transform:translateX(0); }
+    .main { margin-left:0; }
+    .hamburger { display:block; }
+    .content { padding:16px; }
+  }
+
+  /* Filter bar */
+  .filter-bar { display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom:16px; }
+  .filter-bar select, .filter-bar input { font-size:13px; padding:6px 10px; }
+
+  /* Misc */
+  .status-dot { display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:6px; }
+  .badge { display:inline-block; padding:1px 8px; border-radius:12px; font-size:11px; font-weight:600; background:var(--line); color:var(--muted); }
+  .flex-between { display:flex; justify-content:space-between; align-items:center; }
+  .flex-gap { display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+  .mt-1 { margin-top:8px; } .mt-2 { margin-top:16px; } .mb-1 { margin-bottom:8px; } .mb-2 { margin-bottom:16px; }
+
+  /* Loading overlay */
+  .loader-overlay { display:none; position:fixed; inset:0; z-index:9999; background:rgba(255,255,255,.6); backdrop-filter:blur(2px); align-items:center; justify-content:center; }
+  .loader-overlay.active { display:flex; }
+  .loader-box { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:28px 36px; text-align:center; box-shadow:0 4px 24px rgba(0,0,0,.1); }
+  .loader-spinner { width:32px; height:32px; border:3px solid var(--line); border-top-color:var(--accent); border-radius:50%; animation:spin .7s linear infinite; margin:0 auto 12px; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+  .loader-text { font-size:13px; color:var(--muted); }
+  .loader-text strong { display:block; color:var(--ink); font-size:14px; margin-bottom:2px; }
+
+  /* Inline spinner (for buttons) */
+  .btn-loading { pointer-events:none; opacity:.7; }
+  .btn-loading .spinner-inline { display:inline-block; width:14px; height:14px; border:2px solid rgba(255,255,255,.4); border-top-color:#fff; border-radius:50%; animation:spin .7s linear infinite; vertical-align:middle; margin-right:6px; }
+</style>
+<script>
+function showLoader(title, detail) {
+  document.getElementById('loader-title').textContent = title || 'Processing...';
+  document.getElementById('loader-detail').textContent = detail || '';
+  document.getElementById('loader').classList.add('active');
+}
+function withLoader(form, title, detail) {
+  if (!form) return;
+  form.addEventListener('submit', function() {
+    var btn = form.querySelector('button[type=submit]:focus, button:not([type]):focus');
+    if (!btn) btn = form.querySelector('button[type=submit], button:not([type])');
+    if (btn) {
+      btn.classList.add('btn-loading');
+      btn.innerHTML = '<span class="spinner-inline"></span>' + btn.textContent;
+    }
+    showLoader(title, detail);
+  });
+}
+</script>
+</head>
+<body>
+
+<aside class="sidebar" id="sidebar">
+  <div class="logo">ReachDesk</div>
+  <nav>
+    {% for href, label, icon in nav %}
+      <a href="{{ href }}" class="{{ 'active' if request.url.path == href or (href != '/' and request.url.path.startswith(href)) else '' }}">
+        <span class="icon">{{ icon }}</span> {{ label }}
+      </a>
+    {% endfor %}
+  </nav>
+  {% if current_user %}
+  <div class="user-area">
+    <span class="name">{{ current_user.name }}</span>
+    <a href="/settings/account">Settings</a> &middot; <a href="/logout" onclick="fetch('/logout',{method:'POST'}).then(()=>location='/login');return false;">Log out</a>
+  </div>
+  {% endif %}
+</aside>
+
+<div class="main">
+  <div class="topbar">
+    <div class="flex-gap">
+      <button class="hamburger" onclick="document.getElementById('sidebar').classList.toggle('open')">&#9776;</button>
+      <h1>{% block page_title %}{% endblock %}</h1>
+    </div>
+    <div>{% block topbar_actions %}{% endblock %}</div>
+  </div>
+  <div class="content">
+    {% block body %}{% endblock %}
+  </div>
+</div>
+
+<div class="loader-overlay" id="loader">
+  <div class="loader-box">
+    <div class="loader-spinner"></div>
+    <div class="loader-text"><strong id="loader-title">Processing...</strong><span id="loader-detail"></span></div>
+  </div>
+</div>
+
+
+</body>
+</html>
+
+{% macro status_pill(s) %}<span class="pill s-{{ s }}">{{ s.replace('_', ' ').title() }}</span>{% endmacro %}
+{% macro grade_pill(g) %}{% set cls = {'A':'A','B':'B','C+':'Cp','C-':'Cm','C':'Cp','D':'D','E':'E'}[g] %}<span class="pill t-{{ cls }}">{{ g }}</span>{% endmacro %}
+{% macro country_select(name='country', selected='', id='', style='width:100%;') %}
+<select name="{{ name }}"{% if id %} id="{{ id }}"{% endif %} style="{{ style }}">
+<option value="">Select country</option>
+{% for c in [
+'Afghanistan','Albania','Algeria','Andorra','Angola','Argentina','Armenia','Australia','Austria','Azerbaijan',
+'Bahrain','Bangladesh','Belarus','Belgium','Bhutan','Bolivia','Bosnia and Herzegovina','Brazil','Brunei','Bulgaria',
+'Cambodia','Cameroon','Canada','Chad','Chile','China','Colombia','Costa Rica','Croatia','Cuba','Cyprus','Czech Republic',
+'Denmark','Dominican Republic','Ecuador','Egypt','El Salvador','Estonia','Ethiopia',
+'Fiji','Finland','France',
+'Georgia','Germany','Ghana','Greece','Guatemala','Guinea',
+'Haiti','Honduras','Hungary',
+'Iceland','India','Indonesia','Iran','Iraq','Ireland','Israel','Italy',
+'Jamaica','Japan','Jordan',
+'Kazakhstan','Kenya','Kuwait','Kyrgyzstan',
+'Laos','Latvia','Lebanon','Libya','Lithuania','Luxembourg',
+'Madagascar','Malaysia','Maldives','Mali','Malta','Mexico','Moldova','Monaco','Mongolia','Montenegro','Morocco','Mozambique','Myanmar',
+'Namibia','Nepal','Netherlands','New Zealand','Nicaragua','Nigeria','North Korea','North Macedonia','Norway',
+'Oman',
+'Pakistan','Palestine','Panama','Paraguay','Peru','Philippines','Poland','Portugal',
+'Qatar',
+'Romania','Russia','Rwanda',
+'Saudi Arabia','Senegal','Serbia','Singapore','Slovakia','Slovenia','Somalia','South Africa','South Korea','Spain','Sri Lanka','Sudan','Sweden','Switzerland','Syria',
+'Taiwan','Tajikistan','Tanzania','Thailand','Trinidad and Tobago','Tunisia','Turkey','Turkmenistan',
+'Uganda','Ukraine','United Arab Emirates','United Kingdom','United States','Uruguay','Uzbekistan',
+'Venezuela','Vietnam',
+'Yemen',
+'Zambia','Zimbabwe'
+] %}<option value="{{ c }}"{{ ' selected' if selected == c }}>{{ c }}</option>
+{% endfor %}
+</select>
+{% endmacro %}

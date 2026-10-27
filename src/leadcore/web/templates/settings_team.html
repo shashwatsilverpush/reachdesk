@@ -1,0 +1,163 @@
+{% extends "base_new.html" %}
+{% block title %}Team — ReachDesk{% endblock %}
+{% block page_title %}Settings{% endblock %}
+
+{% block body %}
+<div style="display:flex; gap:10px; margin-bottom:20px;">
+  <a href="/settings/team" class="btn btn-sm" style="background:var(--accent);">Team</a>
+  <a href="/settings/templates" class="btn btn-sm btn-secondary">Templates</a>
+  <a href="/settings/account" class="btn btn-sm btn-secondary">Account</a>
+</div>
+
+{% if error %}
+<div class="error-note">{{ error }}</div>
+{% endif %}
+{% if msg %}
+<div class="note">{{ msg }}</div>
+{% endif %}
+
+<style>
+  .role-badge { display:inline-block; padding:2px 10px; border-radius:20px; font-size:11px; font-weight:600; }
+  .role-admin { background:#e8eaf6; color:#283593; }
+  .role-manager { background:#e0f2f1; color:#00695c; }
+  .role-member { background:#f3f4f6; color:#6b7280; }
+  .edit-row { display:none; }
+  .edit-row.open { display:table-row; }
+</style>
+
+<div class="card">
+  <h2>Team Members</h2>
+  {% if users %}
+  <table>
+    <thead>
+      <tr><th>Name</th><th>Email</th><th>Role</th><th>Reports To</th><th>Leads</th><th>Status</th><th style="width:140px;"></th></tr>
+    </thead>
+    <tbody>
+      {% for u in users %}
+      <tr>
+        <td style="font-weight:600;">{{ u.name }}</td>
+        <td class="mono" style="font-size:12px;">{{ u.email }}</td>
+        <td>
+          <span class="role-badge role-{{ u.role or 'member' }}">{{ (u.role or 'member').title() }}</span>
+        </td>
+        <td style="font-size:12px;">
+          {% if u.manager %}{{ u.manager.name }}{% else %}<span class="muted">—</span>{% endif %}
+        </td>
+        <td>{{ u.leads|length }}</td>
+        <td>
+          {% if u.active %}<span class="pill s-won" style="font-size:10px;">Active</span>
+          {% else %}<span class="pill s-lost" style="font-size:10px;">Inactive</span>{% endif %}
+        </td>
+        <td>
+          <div style="display:flex; gap:6px;">
+            <button class="btn-sm btn-secondary" style="font-size:11px;" onclick="toggleEdit({{ u.id }})">Edit</button>
+            <form method="post" action="/settings/team/{{ u.id }}/toggle" style="display:inline;">
+              <button class="btn-sm btn-secondary" style="font-size:11px;">{{ 'Deactivate' if u.active else 'Activate' }}</button>
+            </form>
+          </div>
+        </td>
+      </tr>
+      <tr class="edit-row" id="edit-{{ u.id }}">
+        <td colspan="7" style="background:#f9fafb; padding:14px 10px;">
+          <form method="post" action="/settings/team/{{ u.id }}/edit" style="display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end;">
+            <div style="min-width:150px;">
+              <label style="font-size:12px; color:var(--muted); display:block; margin-bottom:2px;">Name</label>
+              <input name="name" value="{{ u.name }}" style="width:100%;">
+            </div>
+            <div style="min-width:120px;">
+              <label style="font-size:12px; color:var(--muted); display:block; margin-bottom:2px;">Role</label>
+              <select name="role" style="width:100%;">
+                {% for r in roles %}
+                <option value="{{ r }}" {{ 'selected' if (u.role or 'member') == r }}>{{ r.title() }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div style="min-width:150px;">
+              <label style="font-size:12px; color:var(--muted); display:block; margin-bottom:2px;">Reports To</label>
+              <select name="manager_id" style="width:100%;">
+                <option value="">— None —</option>
+                {% for m in managers %}
+                  {% if m.id != u.id %}
+                  <option value="{{ m.id }}" {{ 'selected' if u.manager_id == m.id }}>{{ m.name }} ({{ (m.role or 'admin').title() }})</option>
+                  {% endif %}
+                {% endfor %}
+              </select>
+            </div>
+            <div style="min-width:150px;">
+              <label style="font-size:12px; color:var(--muted); display:block; margin-bottom:2px;">New Password</label>
+              <input name="password" type="password" placeholder="Leave blank to keep" style="width:100%;" minlength="6">
+            </div>
+            <button class="btn-sm">Save</button>
+            <button type="button" class="btn-sm btn-secondary" onclick="toggleEdit({{ u.id }})">Cancel</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="muted" style="font-size:13px;">No team members to show.</p>
+  {% endif %}
+</div>
+
+<div class="card">
+  <h2>Add Team Member</h2>
+  <form method="post" action="/settings/team" style="display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end;">
+    <div style="flex:1; min-width:150px;">
+      <label style="font-size:12px; color:var(--muted); display:block; margin-bottom:2px;">Name *</label>
+      <input name="name" required style="width:100%;">
+    </div>
+    <div style="flex:1; min-width:200px;">
+      <label style="font-size:12px; color:var(--muted); display:block; margin-bottom:2px;">Email *</label>
+      <input name="email" type="email" required style="width:100%;">
+    </div>
+    <div style="min-width:120px;">
+      <label style="font-size:12px; color:var(--muted); display:block; margin-bottom:2px;">Role</label>
+      <select name="role" style="width:100%;">
+        <option value="member">Member</option>
+        <option value="manager">Manager</option>
+        <option value="admin">Admin</option>
+      </select>
+    </div>
+    <div style="min-width:150px;">
+      <label style="font-size:12px; color:var(--muted); display:block; margin-bottom:2px;">Reports To</label>
+      <select name="manager_id" style="width:100%;">
+        <option value="">— None —</option>
+        {% for m in managers %}
+        <option value="{{ m.id }}">{{ m.name }} ({{ (m.role or 'admin').title() }})</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div style="min-width:150px;">
+      <label style="font-size:12px; color:var(--muted); display:block; margin-bottom:2px;">Password</label>
+      <input name="password" type="password" placeholder="Min 6 chars" style="width:100%;" minlength="6">
+    </div>
+    <button>Add Member</button>
+  </form>
+  <p class="muted" style="font-size:12px; margin-top:10px;">If no password is set, the member can register at the login page using the same email.</p>
+</div>
+
+<div class="card">
+  <h2>Role Permissions</h2>
+  <table style="font-size:13px;">
+    <thead>
+      <tr><th>Permission</th><th>Admin</th><th>Manager</th><th>Member</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>View all leads</td><td>&#10003;</td><td>Own + reports</td><td>Own only</td></tr>
+      <tr><td>Create &amp; edit leads</td><td>&#10003;</td><td>&#10003;</td><td>&#10003;</td></tr>
+      <tr><td>Delete leads</td><td>&#10003;</td><td>&#10003;</td><td></td></tr>
+      <tr><td>Manage sequences &amp; templates</td><td>&#10003;</td><td>&#10003;</td><td></td></tr>
+      <tr><td>Manage team members</td><td>&#10003;</td><td></td><td></td></tr>
+      <tr><td>Change settings</td><td>&#10003;</td><td></td><td></td></tr>
+    </tbody>
+  </table>
+</div>
+
+<script>
+function toggleEdit(userId) {
+  var row = document.getElementById('edit-' + userId);
+  row.classList.toggle('open');
+}
+</script>
+{% endblock %}

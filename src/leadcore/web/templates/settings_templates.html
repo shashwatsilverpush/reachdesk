@@ -1,0 +1,76 @@
+{% extends "base_new.html" %}
+{% block title %}Templates — ReachDesk{% endblock %}
+{% block page_title %}Settings{% endblock %}
+
+{% block body %}
+<div style="display:flex; gap:10px; margin-bottom:20px;">
+  <a href="/settings/team" class="btn btn-sm btn-secondary">Team</a>
+  <a href="/settings/templates" class="btn btn-sm" style="background:var(--accent);">Templates</a>
+  <a href="/settings/account" class="btn btn-sm btn-secondary">Account</a>
+</div>
+
+<div class="card">
+  <div class="flex-between">
+    <h2>Mail Reachout Templates</h2>
+  </div>
+  <p class="muted" style="font-size:13px;">Templates use placeholders that get filled with lead data. Click a variable tag to copy it.</p>
+  <div style="display:flex; gap:6px; flex-wrap:wrap; margin-top:8px;">
+    {% for v in ['first_name','last_name','full_name','email','company','domain','role','phone','country'] %}
+    <span style="display:inline-block; padding:2px 8px; border-radius:4px; background:#e8eaf6; color:#283593; font-size:11px; font-family:monospace; cursor:pointer;"
+          data-var="{{ v }}">{% raw %}{{{% endraw %}{{ v }}{% raw %}}}{% endraw %}</span>
+    {% endfor %}
+    <script>document.querySelectorAll('[data-var]').forEach(el => el.onclick = () => navigator.clipboard.writeText('{{'+el.dataset.var+'}}'));</script>
+  </div>
+</div>
+
+{% for t in templates %}
+<div class="card">
+  <div class="flex-between">
+    <div>
+      <h2 style="display:inline; margin:0;">{{ t.name }}</h2>
+      {% if t.owner %}<span class="muted" style="font-size:12px; margin-left:8px;">by {{ t.owner.name }}</span>{% endif %}
+    </div>
+    <div class="flex-gap">
+      <a href="/settings/templates/{{ t.id }}/edit" class="btn btn-sm btn-secondary">Edit</a>
+      <form method="post" action="/settings/templates/{{ t.id }}/delete" style="display:inline;">
+        <button class="btn btn-sm btn-danger" onclick="return confirm('Delete?')">Delete</button>
+      </form>
+    </div>
+  </div>
+  <p style="font-size:13px; margin-top:8px;"><strong>Subject:</strong> <code>{{ t.subject }}</code></p>
+  <div style="background:#f9fafb; border:1px solid var(--line); border-radius:8px; padding:14px; margin-top:8px; font-size:13px; white-space:pre-wrap; line-height:1.6; max-height:200px; overflow-y:auto;">{{ t.body }}</div>
+</div>
+{% endfor %}
+
+{% if not templates %}
+<div class="card"><p class="muted">No templates yet. Create one below.</p></div>
+{% endif %}
+
+<div class="card">
+  <h2>{% if edit_template %}Edit Template{% else %}Create New Template{% endif %}</h2>
+  <form method="post" action="{% if edit_template %}/settings/templates/{{ edit_template.id }}{% else %}/settings/templates{% endif %}" style="display:flex; flex-direction:column; gap:10px;">
+    <div style="display:flex; gap:10px; flex-wrap:wrap;">
+      <div style="flex:1; min-width:200px;">
+        <label style="font-size:12px; color:var(--muted); display:block; margin-bottom:2px;">Template name</label>
+        <input name="name" value="{{ edit_template.name if edit_template else '' }}" placeholder="e.g. Cold intro" required style="width:100%;">
+      </div>
+      <div style="min-width:160px;">
+        <label style="font-size:12px; color:var(--muted); display:block; margin-bottom:2px;">Owner (optional)</label>
+        <select name="user_id" style="width:100%;">
+          <option value="">Shared</option>
+          {% for u in users %}<option value="{{ u.id }}" {{ 'selected' if edit_template and edit_template.user_id == u.id }}>{{ u.name }}</option>{% endfor %}
+        </select>
+      </div>
+    </div>
+    <div>
+      <label style="font-size:12px; color:var(--muted); display:block; margin-bottom:2px;">Subject line</label>
+      <input name="subject" value="{{ edit_template.subject if edit_template else '' }}" placeholder="Quick question about your team" required style="width:100%;">
+    </div>
+    <div>
+      <label style="font-size:12px; color:var(--muted); display:block; margin-bottom:2px;">Body</label>
+      <textarea name="body" rows="8" placeholder="Hi [name],&#10;&#10;I noticed..." required style="width:100%;">{{ edit_template.body if edit_template else '' }}</textarea>
+    </div>
+    <div><button>{% if edit_template %}Save Changes{% else %}Create Template{% endif %}</button></div>
+  </form>
+</div>
+{% endblock %}

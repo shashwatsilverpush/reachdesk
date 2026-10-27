@@ -1,0 +1,199 @@
+{% extends "base_new.html" %}
+{% block title %}{{ lead.first_name }} {{ lead.last_name or '' }} — ReachDesk{% endblock %}
+{% block page_title %}{{ lead.first_name }} {{ lead.last_name or '' }}{% endblock %}
+{% block topbar_actions %}
+<div class="flex-gap">
+  <a href="/leads" class="btn btn-secondary btn-sm">&larr; Back</a>
+  {% if can_delete %}
+  <form method="post" action="/leads/{{ lead.id }}/delete" style="display:inline;">
+    <button class="btn btn-danger btn-sm" onclick="return confirm('Delete this lead?')">Delete</button>
+  </form>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block body %}
+{% from "base_new.html" import status_pill %}
+
+<div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+
+<!-- Left: Lead info -->
+<div>
+  <div class="card">
+    <h2>Lead Information</h2>
+    <form method="post" action="/leads/{{ lead.id }}" style="display:flex; flex-direction:column; gap:10px;">
+      <div class="grid-2">
+        <div>
+          <label style="font-size:12px; color:var(--muted); display:block; margin-bottom:2px;">First name</label>
+          <input name="first_name" value="{{ lead.first_name }}" required style="width:100%;">
+        </div>
+        <div>
+          <label style="font-size:12px; color:var(--muted); display:block; margin-bottom:2px;">Last name</label>
+          <input name="last_name" value="{{ lead.last_name or '' }}" style="width:100%;">
+        </div>
+      </div>
+      <div>
+        <label style="font-size:12px; color:var(--muted); display:block; margin-bottom:2px;">Email</label>
+        <input name="email" value="{{ lead.email or '' }}" type="email" style="width:100%;">
+      </div>
+      <div class="grid-2">
+        <div>
+          <label style="font-size:12px; color:var(--muted); display:block; margin-bottom:2px;">Company</label>
+          <input name="company" value="{{ lead.company or '' }}" style="width:100%;">
+        </div>
+        <div>
+          <label style="font-size:12px; color:var(--muted); display:block; margin-bottom:2px;">Domain</label>
+          <input name="domain" value="{{ lead.domain or '' }}" style="width:100%;">
+        </div>
+      </div>
+      <div>
+        <label style="font-size:12px; color:var(--muted); display:block; margin-bottom:2px;">Role / Title</label>
+        <input name="role_title" value="{{ lead.role_title or '' }}" style="width:100%;">
+      </div>
+      <div class="grid-2">
+        <div>
+          <label style="font-size:12px; color:var(--muted); display:block; margin-bottom:2px;">Phone</label>
+          <input name="phone" value="{{ lead.phone or '' }}" style="width:100%;">
+        </div>
+        <div>
+          <label style="font-size:12px; color:var(--muted); display:block; margin-bottom:2px;">Country</label>
+          {% from "base_new.html" import country_select %}
+          {{ country_select(name='country', selected=lead.country or '') }}
+        </div>
+      </div>
+      <div>
+        <label style="font-size:12px; color:var(--muted); display:block; margin-bottom:2px;">LinkedIn URL</label>
+        <input name="linkedin_url" value="{{ lead.linkedin_url or '' }}" style="width:100%; word-break:break-all;">
+      </div>
+      <div class="grid-2">
+        <div>
+          <label style="font-size:12px; color:var(--muted); display:block; margin-bottom:2px;">Status</label>
+          <select name="status" style="width:100%;">
+            {% for st in statuses %}
+            <option value="{{ st }}" {{ 'selected' if lead.status.value == st }}>{{ st.replace('_',' ').title() }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label style="font-size:12px; color:var(--muted); display:block; margin-bottom:2px;">Assigned to</label>
+          <select name="assigned_to" style="width:100%;">
+            <option value="">Unassigned</option>
+            {% for u in users %}
+            <option value="{{ u.id }}" {{ 'selected' if lead.assigned_to == u.id }}>{{ u.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+      <div>
+        <label style="font-size:12px; color:var(--muted); display:block; margin-bottom:2px;">Notes</label>
+        <textarea name="notes" rows="3" style="width:100%;">{{ lead.notes or '' }}</textarea>
+      </div>
+      <button>Save Changes</button>
+    </form>
+  </div>
+
+  {% if dp %}
+  <div class="card">
+    <h2>Pattern Info</h2>
+    <table>
+      <tr><td class="muted">Domain</td><td>{{ dp.domain }}</td></tr>
+      <tr><td class="muted">Grade</td><td><span class="pill t-{{ {'A':'A','B':'B','C+':'Cp','C-':'Cm','C':'Cp','D':'D','E':'E'}[dp.grade] }}">{{ dp.grade }}</span></td></tr>
+      <tr><td class="muted">Pattern</td><td class="mono">{{ dp.pattern or '—' }}</td></tr>
+      <tr><td class="muted">Example</td><td class="mono">{{ dp.example or '—' }}</td></tr>
+      <tr><td class="muted">Samples</td><td>{{ dp.samples }}</td></tr>
+    </table>
+  </div>
+  {% endif %}
+</div>
+
+<!-- Right: Sequence + Activity -->
+<div>
+  <!-- Sequence section -->
+  <div class="card">
+    <h2>Email Sequence</h2>
+    {% if lead_seq %}
+    <div style="margin-bottom:12px;">
+      <span class="badge">{{ lead_seq.sequence.name }}</span>
+      <span class="muted" style="font-size:12px; margin-left:8px;">Step {{ lead_seq.current_step }} of {{ lead_seq.emails|length }}</span>
+      {% if lead_seq.paused %}<span class="badge" style="background:#fff3e0; color:#e65100;">Paused</span>{% endif %}
+    </div>
+
+    {% for em in lead_seq.emails %}
+    <div style="border:1px solid var(--line); border-radius:8px; padding:14px; margin-bottom:10px;
+                {{ 'border-left:3px solid var(--s-new);' if em.status.value == 'draft' else
+                   'border-left:3px solid var(--s-won);' if em.status.value == 'approved' else
+                   'border-left:3px solid var(--s-lost);' if em.status.value == 'skipped' else '' }}">
+      <div class="flex-between mb-1">
+        <div>
+          <strong style="font-size:13px;">Step {{ em.step.step_number }}</strong>
+          {% if em.step.delay_days %}<span class="muted" style="font-size:11px;"> ({{ em.step.delay_days }}d delay)</span>{% endif %}
+        </div>
+        <span class="pill s-{{ em.status.value }}" style="font-size:10px;">{{ em.status.value }}</span>
+      </div>
+      <div style="font-size:13px; font-weight:600; margin-bottom:4px;">{{ em.subject }}</div>
+      <div style="font-size:12px; background:#f9fafb; border-radius:6px; padding:10px; white-space:pre-wrap; max-height:150px; overflow-y:auto; overflow-x:hidden; word-break:break-word; line-height:1.6;">{{ em.body }}</div>
+
+      {% if em.status.value == 'draft' %}
+      <div style="margin-top:10px; display:flex; gap:8px;">
+        <form method="post" action="/leads/{{ lead.id }}/emails/{{ em.id }}/approve">
+          <button class="btn-sm" style="background:var(--s-won);">Approve & Send</button>
+        </form>
+        <form method="post" action="/leads/{{ lead.id }}/emails/{{ em.id }}/skip">
+          <button class="btn-sm btn-secondary">Skip</button>
+        </form>
+      </div>
+      {% endif %}
+      {% if em.sent_at %}
+      <div class="muted" style="font-size:11px; margin-top:6px;">Approved: {{ em.sent_at.strftime('%b %d, %H:%M') }}</div>
+      {% endif %}
+    </div>
+    {% endfor %}
+
+    {% else %}
+    <p class="muted" style="font-size:13px;">No sequence assigned yet.</p>
+    {% if sequences %}
+    <form method="post" action="/leads/{{ lead.id }}/sequence/assign" style="display:flex; gap:10px; margin-top:10px;">
+      <select name="sequence_id" style="flex:1;">
+        <option value="">Select a sequence...</option>
+        {% for seq in sequences %}
+        <option value="{{ seq.id }}">{{ seq.name }}</option>
+        {% endfor %}
+      </select>
+      <button class="btn-sm">Assign</button>
+    </form>
+    {% else %}
+    <p style="font-size:13px; margin-top:8px;"><a href="/sequences/new" class="link">Create a sequence</a> first.</p>
+    {% endif %}
+    {% endif %}
+  </div>
+
+  <!-- Activity Timeline -->
+  <div class="card">
+    <h2>Activity</h2>
+    {% if activities %}
+    <div style="border-left:2px solid var(--line); margin-left:8px; padding-left:16px;">
+      {% for a in activities %}
+      <div style="margin-bottom:14px; position:relative;">
+        <div style="position:absolute; left:-22px; top:4px; width:10px; height:10px; border-radius:50%; background:var(--accent); border:2px solid var(--card);"></div>
+        <div style="font-size:13px; font-weight:600;">{{ a.action.replace('_', ' ').title() }}</div>
+        {% if a.detail %}<div style="font-size:12px; color:var(--muted);">{{ a.detail }}</div>{% endif %}
+        <div style="font-size:11px; color:var(--muted);">
+          {{ a.created_at.strftime('%b %d, %H:%M') if a.created_at else '' }}
+          {% if a.user %} &middot; {{ a.user.name }}{% endif %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <p class="muted" style="font-size:13px;">No activity yet.</p>
+    {% endif %}
+  </div>
+</div>
+</div>
+
+<style>
+  @media (max-width:900px) {
+    div[style*="grid-template-columns:1fr 1fr"] { grid-template-columns:1fr !important; }
+  }
+</style>
+{% endblock %}

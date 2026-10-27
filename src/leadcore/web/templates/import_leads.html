@@ -1,0 +1,135 @@
+{% extends "base_new.html" %}
+{% block title %}Import Leads — ReachDesk{% endblock %}
+{% block page_title %}Import Leads{% endblock %}
+
+{% block body %}
+<div style="max-width:900px;">
+
+{% if error %}
+<div class="error-note">{{ error }}</div>
+{% endif %}
+
+{% if step == 'upload' %}
+<!-- ── Upload ── -->
+<div class="card">
+  <h2>Import Leads from File</h2>
+  <p class="muted" style="font-size:13px; margin-bottom:14px;">Upload a CSV or XLSX file with a header row. Columns will be mapped to lead fields in the next step.</p>
+
+  <form method="post" action="/import-leads/preview" enctype="multipart/form-data" id="upload-form">
+    <div style="margin-bottom:14px;">
+      <label style="font-size:12px; color:var(--muted); display:block; margin-bottom:2px;">File (.csv or .xlsx)</label>
+      <input type="file" name="file" accept=".csv,.xlsx" required style="width:100%;">
+    </div>
+    <button type="submit">Upload &amp; Preview</button>
+  </form>
+
+  <div class="note mt-2">
+    <strong>Tips:</strong> The first row should contain column headers (e.g. "First Name", "Email", "Company"). Max file size: 5 MB. Duplicate emails will be skipped automatically.
+  </div>
+</div>
+
+{% elif step == 'preview' %}
+<!-- ── Column Mapping ── -->
+<div class="card">
+  <h2>Map Columns</h2>
+  <p class="muted" style="font-size:13px; margin-bottom:14px;">Match your file columns to lead fields. Fields marked * are required.</p>
+
+  <form method="post" action="/import-leads/confirm" id="confirm-form">
+    <input type="hidden" name="file_data" value="{{ file_data }}">
+    <input type="hidden" name="filename" value="{{ filename }}">
+
+    <div class="grid-2" style="margin-bottom:16px;">
+      {% for field in import_fields %}
+      <div style="margin-bottom:8px;">
+        <label style="font-size:12px; color:var(--muted); display:block; margin-bottom:2px;">
+          {{ field.replace('_', ' ').title() }}{% if field == 'first_name' %} *{% endif %}
+        </label>
+        <select name="mapping_{{ field }}" style="width:100%;">
+          <option value="">— Skip —</option>
+          {% for h in headers %}
+          <option value="{{ h }}" {{ 'selected' if suggested.get(field) == h }}>{{ h }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      {% endfor %}
+    </div>
+
+    <button type="submit">Import {{ total_rows }} Lead{{ 's' if total_rows != 1 }}</button>
+  </form>
+</div>
+
+<!-- Preview table -->
+<div class="card">
+  <h2>Preview (first {{ preview_rows|length }} of {{ total_rows }} rows)</h2>
+  <div style="overflow-x:auto;">
+    <table>
+      <thead>
+        <tr>
+          {% for h in headers %}
+          <th>{{ h }}</th>
+          {% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in preview_rows %}
+        <tr>
+          {% for h in headers %}
+          <td style="font-size:12px;">{{ row.get(h, '') }}</td>
+          {% endfor %}
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% elif step == 'results' %}
+<!-- ── Results ── -->
+<div class="card">
+  <h2>Import Complete</h2>
+
+  <div class="grid-3 mb-2">
+    <div style="text-align:center; padding:16px; background:#f0fdf4; border-radius:8px;">
+      <div style="font-size:28px; font-weight:800; color:var(--s-won);">{{ imported }}</div>
+      <div class="muted" style="font-size:12px;">Imported</div>
+    </div>
+    <div style="text-align:center; padding:16px; background:#fff8e1; border-radius:8px;">
+      <div style="font-size:28px; font-weight:800; color:#a16207;">{{ skipped_dup }}</div>
+      <div class="muted" style="font-size:12px;">Duplicates Skipped</div>
+    </div>
+    <div style="text-align:center; padding:16px; background:#fce4ec; border-radius:8px;">
+      <div style="font-size:28px; font-weight:800; color:var(--s-lost);">{{ skipped_invalid + errors|length }}</div>
+      <div class="muted" style="font-size:12px;">Skipped / Errors</div>
+    </div>
+  </div>
+
+  {% if errors %}
+  <div class="error-note">
+    <strong>Errors:</strong>
+    <ul style="margin:6px 0 0; padding-left:18px; font-size:12px;">
+      {% for e in errors[:20] %}
+      <li>Row {{ e.row }}: {{ e.reason }}</li>
+      {% endfor %}
+      {% if errors|length > 20 %}<li>...and {{ errors|length - 20 }} more</li>{% endif %}
+    </ul>
+  </div>
+  {% endif %}
+
+  {% if imported %}
+  <div class="note">{{ imported }} lead{{ 's' if imported != 1 }} added successfully.</div>
+  {% endif %}
+
+  <div class="flex-gap mt-2">
+    <a href="/leads" class="btn">View Leads</a>
+    <a href="/import-leads" class="btn btn-secondary">Import More</a>
+  </div>
+</div>
+{% endif %}
+
+</div>
+
+<script>
+withLoader(document.getElementById('upload-form'), 'Parsing file...', 'Reading and analyzing your data.');
+withLoader(document.getElementById('confirm-form'), 'Importing leads...', 'This may take a moment for large files.');
+</script>
+{% endblock %}

@@ -1,0 +1,154 @@
+{% extends "base_new.html" %}
+{% from "base_new.html" import status_pill %}
+
+{% block title %}Leads — ReachDesk{% endblock %}
+{% block page_title %}Leads{% endblock %}
+
+{% block topbar_actions %}
+<div class="flex-gap">
+  <a href="/import-leads" class="btn btn-secondary">Import</a>
+  <a href="/new-lead" class="btn">+ New Lead</a>
+</div>
+{% endblock %}
+
+{% block body %}
+<style>
+  .status-cell { position:relative; overflow:visible !important; }
+  .status-cell .pill { cursor:pointer; transition:opacity .15s; }
+  .status-cell .pill:hover { opacity:.85; }
+  .status-menu { display:none; position:fixed; z-index:9999; background:#fff;
+                 border:1px solid #d1d5db; border-radius:8px; box-shadow:0 8px 24px rgba(0,0,0,.18);
+                 padding:6px 0; min-width:160px; }
+  .status-menu.open { display:block; }
+  .status-menu button { display:flex; align-items:center; gap:8px; width:100%; padding:8px 14px;
+                        background:none; border:none; border-radius:0; font-size:12px; font-weight:500;
+                        color:var(--ink); cursor:pointer; text-align:left; }
+  .status-menu button:hover { background:#f3f4f6; }
+  .status-menu button.current { font-weight:700; background:#eef2ff; }
+</style>
+
+<div class="card mb-2">
+  <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;">
+    <a href="/leads" class="link" style="text-decoration:none;{% if not filt_status %}font-weight:700{% endif %}">
+      <span class="pill" style="background:var(--ink);">All</span> <span class="muted" style="margin-left:4px;font-size:12px;">{{ total_leads }}</span>
+    </a>
+    {% for val, cnt in pipeline.items() %}
+      <a href="/leads?status={{ val }}" class="link" style="text-decoration:none;{% if filt_status == val %}font-weight:700{% endif %}">
+        {{ status_pill(val) }} <span class="muted" style="margin-left:4px;font-size:12px;">{{ cnt }}</span>
+      </a>
+    {% endfor %}
+  </div>
+</div>
+
+<div class="card">
+  <form method="get" action="/leads" class="filter-bar">
+    <select name="status" onchange="this.form.submit()">
+      <option value="">All statuses</option>
+      {% for st in statuses %}
+        <option value="{{ st }}" {{ 'selected' if filt_status == st }}>{{ st.replace('_',' ').title() }}</option>
+      {% endfor %}
+    </select>
+    <input type="text" name="q" value="{{ filt_q }}" placeholder="Search leads..." style="flex:1;min-width:160px;">
+    <select name="sort" onchange="this.form.submit()">
+      <option value="">Newest</option>
+      <option value="name" {{ 'selected' if filt_sort == 'name' }}>Name</option>
+      <option value="company" {{ 'selected' if filt_sort == 'company' }}>Company</option>
+      <option value="status" {{ 'selected' if filt_sort == 'status' }}>Status</option>
+      <option value="activity" {{ 'selected' if filt_sort == 'activity' }}>Last Activity</option>
+    </select>
+    <button type="submit" class="btn btn-sm">Filter</button>
+    {% if filt_status or filt_q or filt_sort %}
+      <a href="/leads" class="link" style="font-size:12px;">Clear</a>
+    {% endif %}
+  </form>
+
+  {% if leads %}
+  <table>
+    <colgroup>
+      <col style="width:16%"><col style="width:22%"><col style="width:16%">
+      <col style="width:12%"><col style="width:10%"><col style="width:10%">
+      <col style="width:7%"><col style="width:7%">
+    </colgroup>
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Email</th>
+        <th>Company</th>
+        <th>Status</th>
+        <th>Phone</th>
+        <th>Country</th>
+        <th>Assigned</th>
+        <th>Created</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for lead in leads %}
+      <tr style="cursor:pointer" onclick="location='/leads/{{ lead.id }}'">
+        <td class="truncate" style="font-weight:600;">{{ lead.first_name }} {{ lead.last_name or '' }}</td>
+        <td class="mono truncate">{{ lead.email or '—' }}</td>
+        <td class="truncate">{{ lead.company or '' }} {% if lead.domain %}<span class="muted" style="font-size:11px;">{{ lead.domain }}</span>{% endif %}</td>
+        <td class="status-cell" onclick="event.stopPropagation();">
+          <span class="pill s-{{ lead.status.value }}" onclick="toggleMenu(this)">{{ lead.status.value.replace('_', ' ').title() }}</span>
+          <div class="status-menu" data-lead-id="{{ lead.id }}">
+            {% for st in statuses %}
+            <button type="button" class="{{ 'current' if lead.status.value == st }}" onclick="changeStatus({{ lead.id }}, '{{ st }}', this)">
+              <span class="pill s-{{ st }}" style="font-size:10px;padding:1px 8px;">{{ st.replace('_',' ').title() }}</span>
+            </button>
+            {% endfor %}
+          </div>
+        </td>
+        <td class="truncate muted" style="font-size:12px;">{{ lead.phone or '—' }}</td>
+        <td class="truncate muted" style="font-size:12px;">{{ lead.country or '—' }}</td>
+        <td class="truncate muted">{{ lead.assigned_user.name if lead.assigned_user else '—' }}</td>
+        <td class="muted" style="font-size:12px;white-space:nowrap;">{{ lead.created_at.strftime('%b %d') }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div style="text-align:center;padding:48px 0;">
+    <p class="muted" style="font-size:16px;">No leads yet</p>
+    <p class="muted" style="margin-top:12px;">
+      <a href="/new-lead" class="btn" style="display:inline-block;">+ Add your first lead</a>
+    </p>
+  </div>
+  {% endif %}
+</div>
+
+<script>
+function toggleMenu(pill) {
+  var menu = pill.nextElementSibling;
+  document.querySelectorAll('.status-menu.open').forEach(function(m) {
+    if (m !== menu) m.classList.remove('open');
+  });
+  if (!menu.classList.contains('open')) {
+    var rect = pill.getBoundingClientRect();
+    menu.style.left = rect.left + 'px';
+    menu.style.top = (rect.bottom + 4) + 'px';
+    if (rect.bottom + 280 > window.innerHeight) {
+      menu.style.top = (rect.top - menu.offsetHeight - 4) + 'px';
+    }
+  }
+  menu.classList.toggle('open');
+}
+
+function changeStatus(leadId, newStatus, btn) {
+  var form = document.createElement('form');
+  form.method = 'POST';
+  form.action = '/leads/' + leadId + '/status';
+  var input = document.createElement('input');
+  input.type = 'hidden';
+  input.name = 'status';
+  input.value = newStatus;
+  form.appendChild(input);
+  document.body.appendChild(form);
+  form.submit();
+}
+
+document.addEventListener('click', function(e) {
+  if (!e.target.closest('.status-cell')) {
+    document.querySelectorAll('.status-menu.open').forEach(function(m) { m.classList.remove('open'); });
+  }
+});
+</script>
+{% endblock %}

@@ -1,0 +1,303 @@
+{% extends "base_new.html" %}
+{% from "base_new.html" import country_select %}
+{% block title %}Find Email — ReachDesk{% endblock %}
+{% block page_title %}Find Email{% endblock %}
+
+{% block body %}
+<div style="max-width:800px;">
+
+{% if error %}
+<div class="error-note">{{ error|safe }}</div>
+{% endif %}
+
+<!-- Scope — Find Work Email -->
+<div class="card">
+  <h2>Scope — Find Work Email</h2>
+  <p class="muted" style="font-size:13px; margin-bottom:14px;">Look up via LinkedIn and generate work email candidates.</p>
+
+  <div style="margin-bottom:14px;">
+    <label style="font-size:12px; color:var(--muted); display:block; margin-bottom:2px;">LinkedIn Profile URL</label>
+    <div style="display:flex; gap:8px;">
+      <input id="li-url" value="{{ linkedin_url }}" placeholder="https://linkedin.com/in/..." style="flex:1;">
+      <button type="button" id="li-lookup" class="btn-sm" onclick="lookupLinkedIn()">Lookup</button>
+    </div>
+    <div id="li-status" class="muted" style="font-size:12px; margin-top:4px;"></div>
+  </div>
+
+  <form method="post" action="/scope" id="scope-form">
+    <input type="hidden" name="linkedin_url" id="li-hidden" value="{{ linkedin_url }}">
+    <div class="grid-2" style="margin-bottom:10px;">
+      <div>
+        <label style="font-size:12px; color:var(--muted); display:block; margin-bottom:2px;">First name *</label>
+        <input name="first" id="f-first" value="{{ first }}" required style="width:100%;">
+      </div>
+      <div>
+        <label style="font-size:12px; color:var(--muted); display:block; margin-bottom:2px;">Last name</label>
+        <input name="last" id="f-last" value="{{ last }}" style="width:100%;">
+      </div>
+    </div>
+    <div class="grid-2" style="margin-bottom:10px;">
+      <div>
+        <label style="font-size:12px; color:var(--muted); display:block; margin-bottom:2px;">Company</label>
+        <input name="company" id="f-company" value="{{ company }}" style="width:100%;">
+      </div>
+      <div>
+        <label style="font-size:12px; color:var(--muted); display:block; margin-bottom:2px;">Domain *</label>
+        <input name="domain" id="f-domain" value="{{ domain }}" required style="width:100%;" placeholder="example.com">
+      </div>
+    </div>
+    <div class="grid-2" style="margin-bottom:10px;">
+      <div>
+        <label style="font-size:12px; color:var(--muted); display:block; margin-bottom:2px;">Role / Title</label>
+        <input name="role" id="f-role" value="{{ role }}" style="width:100%;">
+      </div>
+      <div>
+        <label style="font-size:12px; color:var(--muted); display:block; margin-bottom:2px;">Phone</label>
+        <input name="phone" id="f-phone" value="{{ phone|default('', true) }}" style="width:100%;">
+      </div>
+    </div>
+    <div class="grid-2" style="margin-bottom:10px;">
+      <div>
+        <label style="font-size:12px; color:var(--muted); display:block; margin-bottom:2px;">Country</label>
+        {{ country_select(name='country', selected=country|default('', true), id='f-country') }}
+      </div>
+    </div>
+
+    <button type="submit">Scope</button>
+  </form>
+</div>
+
+{% if step == 'results' %}
+{% if not result and not pattern_hits %}
+<div class="card">
+  <div class="error-note">No email candidates could be generated for this domain. This usually means no email pattern data is available. You can still <a href="/new-lead">add the lead manually</a>.</div>
+</div>
+{% else %}
+
+{# ── Collect all hits into found / not_found lists ── #}
+{% set ns = namespace(found=[], notfound=[]) %}
+{% if result and result.candidates %}
+  {% for c in result.candidates %}
+    {% set v = live_verify.get(c.address, {}) %}
+    {% if v.verdict == 'valid' %}
+      {% set ns.found = ns.found + [{'email': c.address, 'pattern': '', 'source': 'pattern'}] %}
+    {% elif v.verdict == 'invalid' %}
+      {% set ns.notfound = ns.notfound + [{'email': c.address, 'pattern': ''}] %}
+    {% else %}
+      {% set ns.found = ns.found + [{'email': c.address, 'pattern': '', 'source': 'pattern'}] %}
+    {% endif %}
+  {% endfor %}
+{% endif %}
+{% if pattern_hits %}
+  {% for h in pattern_hits %}
+    {% if h.exists is true %}
+      {% set ns.found = ns.found + [{'email': h.email, 'pattern': h.pattern, 'source': 'probe'}] %}
+    {% elif h.exists is false %}
+      {% set ns.notfound = ns.notfound + [{'email': h.email, 'pattern': h.pattern}] %}
+    {% else %}
+      {% set ns.notfound = ns.notfound + [{'email': h.email, 'pattern': h.pattern}] %}
+    {% endif %}
+  {% endfor %}
+{% endif %}
+
+<!-- Results -->
+<style>
+  .results-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+  @media (max-width:800px) { .results-grid { grid-template-columns:1fr; } }
+  .result-col { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:16px 18px; }
+  .result-col h3 { display:flex; align-items:center; gap:8px; margin-bottom:12px; }
+  .result-col h3 .count { display:inline-flex; align-items:center; justify-content:center; min-width:22px; height:22px; border-radius:11px; font-size:11px; font-weight:700; color:#fff; padding:0 6px; }
+  .count-found { background:var(--s-won); }
+  .count-notfound { background:var(--s-lost); }
+  .hit-row { display:flex; align-items:center; padding:8px 10px; border-radius:6px; font-size:13px; transition:background .12s; }
+  .hit-row:hover { background:#f4f5f7; }
+  .hit-row .email { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:12px; word-break:break-all; }
+  .hit-row .pattern-tag { color:var(--muted); font-size:11px; margin-left:6px; }
+  .hit-row .select-btn { margin-left:auto; opacity:0; padding:3px 10px; font-size:11px; font-weight:600; background:var(--accent); color:#fff; border:none; border-radius:6px; cursor:pointer; transition:opacity .12s; white-space:nowrap; }
+  .hit-row:hover .select-btn { opacity:1; }
+  .hit-row .selected-tag { margin-left:auto; font-size:11px; font-weight:600; color:var(--s-won); display:none; }
+  .hit-row.is-selected { background:#f0fdf4; }
+  .hit-row.is-selected .select-btn { opacity:1; background:var(--s-won); }
+  .hit-row.is-selected .selected-tag { display:inline; }
+  .nf-row { display:flex; align-items:center; padding:6px 10px; font-size:13px; color:var(--muted); }
+  .nf-row .email { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:12px; text-decoration:line-through; opacity:.6; }
+  .nf-row .pattern-tag { font-size:11px; margin-left:6px; opacity:.5; }
+</style>
+
+{% if dp %}
+<div class="card" style="padding:12px 18px;">
+  <span style="font-size:13px;">Domain pattern: <code>{{ dp.pattern }}</code></span>
+  <span class="pill t-{{ {'A':'A','B':'B','C+':'Cp','C-':'Cm','C':'Cp','D':'D','E':'E'}.get(dp.grade, 'E') }}" style="margin-left:8px;">{{ dp.grade }}</span>
+</div>
+{% endif %}
+
+<div class="results-grid">
+  <!-- Found -->
+  <div class="result-col">
+    <h3>Found <span class="count count-found">{{ ns.found|length }}</span></h3>
+    {% if ns.found %}
+      {% for h in ns.found %}
+      <div class="hit-row" data-email="{{ h.email }}">
+        <span class="email">{{ h.email }}</span>
+        {% if h.pattern %}<span class="pattern-tag">{{ h.pattern }}</span>{% endif %}
+        <button class="select-btn" onclick="selectEmail(this, '{{ h.email }}')">Select</button>
+        <span class="selected-tag">Selected</span>
+      </div>
+      {% endfor %}
+    {% else %}
+      <p class="muted" style="font-size:13px;">No confirmed addresses found.</p>
+    {% endif %}
+  </div>
+
+  <!-- Not Found -->
+  <div class="result-col">
+    <h3>Not Found <span class="count count-notfound">{{ ns.notfound|length }}</span></h3>
+    {% if ns.notfound %}
+      {% for h in ns.notfound %}
+      <div class="nf-row">
+        <span class="email">{{ h.email }}</span>
+        {% if h.pattern %}<span class="pattern-tag">{{ h.pattern }}</span>{% endif %}
+      </div>
+      {% endfor %}
+    {% else %}
+      <p class="muted" style="font-size:13px;">All patterns returned results.</p>
+    {% endif %}
+  </div>
+</div>
+
+{% if best_hit %}
+<div class="note mt-1">
+  <strong>Best match:</strong> {{ best_hit.email }}
+  ({{ best_hit.confidence }} confidence — {{ best_hit.confidence_note }})
+</div>
+{% endif %}
+
+<!-- Save as Lead (shown after selecting an email) -->
+<div class="card" id="save-lead-panel" style="display:none;">
+  <h2>Save as Lead</h2>
+  <p style="font-size:13px; margin-bottom:12px;">
+    Selected email: <strong id="selected-email-display" class="mono"></strong>
+  </p>
+
+  <div style="display:flex; gap:12px; margin-bottom:16px;">
+    <label style="display:flex; align-items:center; gap:6px; cursor:pointer; font-size:14px; font-weight:600;">
+      <input type="radio" name="action_mode" value="new" checked onchange="toggleActionMode()"> Add as New Lead
+    </label>
+    <label style="display:flex; align-items:center; gap:6px; cursor:pointer; font-size:14px; font-weight:600;">
+      <input type="radio" name="action_mode" value="existing" onchange="toggleActionMode()"> Update Existing Lead
+    </label>
+  </div>
+
+  <div id="action-new">
+    <form method="post" action="/leads" id="create-form">
+      <input type="hidden" name="first_name" value="{{ first }}">
+      <input type="hidden" name="last_name" value="{{ last }}">
+      <input type="hidden" name="domain" value="{{ domain }}">
+      <input type="hidden" name="company" value="{{ company }}">
+      <input type="hidden" name="role_title" value="{{ role }}">
+      <input type="hidden" name="phone" value="{{ phone|default('', true) }}">
+      <input type="hidden" name="country" value="{{ country|default('', true) }}">
+      <input type="hidden" name="linkedin_url" value="{{ linkedin_url }}">
+      <input type="hidden" name="email" id="final-email-new" value="">
+      <div class="grid-2" style="margin-bottom:10px;">
+        <div>
+          <label style="font-size:12px; color:var(--muted); display:block; margin-bottom:2px;">Assign to</label>
+          <select name="assigned_to" style="width:100%;">
+            {% for u in users %}
+            <option value="{{ u.id }}" {{ 'selected' if current_user and u.id == current_user.id }}>{{ u.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+      <div style="margin-bottom:10px;">
+        <label style="font-size:12px; color:var(--muted); display:block; margin-bottom:2px;">Notes</label>
+        <textarea name="notes" rows="2" style="width:100%;"></textarea>
+      </div>
+      <button type="submit">Save as New Lead</button>
+    </form>
+  </div>
+
+  <div id="action-existing" style="display:none;">
+    <form id="update-existing-form" method="post" action="">
+      <input type="hidden" name="email" id="final-email-existing" value="">
+      <div style="margin-bottom:10px;">
+        <label style="font-size:12px; color:var(--muted); display:block; margin-bottom:2px;">Select existing lead</label>
+        <select id="existing-lead-select" style="width:100%;" onchange="updateExistingAction()">
+          <option value="">— Choose a lead —</option>
+          {% for el in existing_leads %}
+          <option value="{{ el.id }}">{{ el.first_name }} {{ el.last_name or '' }} {% if el.email %}({{ el.email }}){% endif %} {% if el.company %}— {{ el.company }}{% endif %}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <button type="submit" id="update-btn" disabled>Update Lead's Email</button>
+    </form>
+  </div>
+</div>
+{% endif %}{# end else (has results) #}
+{% endif %}{# end if step == results #}
+
+</div>
+
+<script>
+async function lookupLinkedIn() {
+  const url = document.getElementById('li-url').value.trim();
+  const st = document.getElementById('li-status');
+  const btn = document.getElementById('li-lookup');
+  if (!url) { st.textContent = 'Enter a LinkedIn URL'; return; }
+  st.textContent = 'Looking up...';
+  btn.classList.add('btn-loading');
+  btn.innerHTML = '<span class="spinner-inline"></span>Lookup';
+  document.getElementById('li-hidden').value = url;
+  try {
+    const r = await fetch('/scope/linkedin-lookup?url=' + encodeURIComponent(url));
+    const d = await r.json();
+    if (d.error) { st.textContent = d.error; return; }
+    if (d.first) document.getElementById('f-first').value = d.first;
+    if (d.last) document.getElementById('f-last').value = d.last;
+    if (d.company) document.getElementById('f-company').value = d.company;
+    if (d.domain) document.getElementById('f-domain').value = d.domain;
+    if (d.role) document.getElementById('f-role').value = d.role;
+    st.textContent = 'Found via ' + (d.source || 'lookup');
+    if (d.warnings) st.textContent += ' — ' + d.warnings.join('; ');
+  } catch(e) { st.textContent = 'Lookup failed: ' + e.message; }
+  finally { btn.classList.remove('btn-loading'); btn.textContent = 'Lookup'; }
+}
+
+var _selectedEmail = '';
+
+function selectEmail(btn, email) {
+  _selectedEmail = email;
+  document.querySelectorAll('.hit-row').forEach(function(r) { r.classList.remove('is-selected'); });
+  btn.closest('.hit-row').classList.add('is-selected');
+  document.getElementById('selected-email-display').textContent = email;
+  document.getElementById('final-email-new').value = email;
+  document.getElementById('final-email-existing').value = email;
+  var panel = document.getElementById('save-lead-panel');
+  panel.style.display = 'block';
+  panel.scrollIntoView({behavior: 'smooth', block: 'nearest'});
+}
+
+function toggleActionMode() {
+  var mode = document.querySelector('input[name=action_mode]:checked').value;
+  document.getElementById('action-new').style.display = mode === 'new' ? 'block' : 'none';
+  document.getElementById('action-existing').style.display = mode === 'existing' ? 'block' : 'none';
+}
+
+function updateExistingAction() {
+  var sel = document.getElementById('existing-lead-select');
+  var form = document.getElementById('update-existing-form');
+  var btn = document.getElementById('update-btn');
+  if (sel.value) {
+    form.action = '/leads/' + sel.value + '/update-email';
+    btn.disabled = false;
+  } else {
+    form.action = '';
+    btn.disabled = true;
+  }
+}
+
+withLoader(document.getElementById('scope-form'), 'Scoping email...', 'Generating patterns and probing mail servers — this may take 15–30 seconds.');
+var createForm = document.getElementById('create-form');
+if (createForm) withLoader(createForm, 'Creating lead...', '');
+</script>
+{% endblock %}

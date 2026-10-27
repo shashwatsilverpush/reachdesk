@@ -1,0 +1,125 @@
+{% extends "base_new.html" %}
+
+{% block title %}{{ seq.name if seq else 'New Sequence' }} — ReachDesk{% endblock %}
+{% block page_title %}{{ seq.name if seq else 'New Sequence' }}{% endblock %}
+
+{% block topbar_actions %}
+{% if seq %}
+<form method="post" action="/sequences/{{ seq.id }}/delete" onsubmit="return confirm('Delete this sequence?')" style="display:inline;">
+  <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+</form>
+{% endif %}
+{% endblock %}
+
+{% block body %}
+{% if error is defined and error %}
+<div class="error-note">{{ error }}</div>
+{% endif %}
+
+<form method="post" action="{{ '/sequences/' ~ seq.id if seq else '/sequences' }}" id="seqForm">
+  <div class="card mb-2">
+    <label style="display:block;font-size:12px;color:var(--muted);margin-bottom:4px;font-weight:600;">Sequence Name</label>
+    <input name="name" value="{{ seq.name if seq else '' }}" required placeholder="e.g. Cold Outreach — SaaS" style="width:100%;max-width:400px;">
+  </div>
+
+  <div id="steps">
+    {% if seq and seq.steps %}
+      {% for step in seq.steps|sort(attribute='step_number') %}
+      <div class="card mb-1 step-card" data-step="{{ loop.index }}">
+        <div class="flex-between mb-1">
+          <h3 style="margin:0;">Step {{ loop.index }}</h3>
+          <div class="flex-gap">
+            <label class="muted" style="font-size:12px;">Delay (days):</label>
+            <input type="number" name="step_{{ loop.index }}_delay" value="{{ step.delay_days }}" min="0" style="width:70px;padding:4px 8px;font-size:12px;">
+            <button type="button" class="btn btn-sm btn-danger" onclick="this.closest('.step-card').remove();renumber();" style="padding:2px 8px;font-size:11px;">✕</button>
+          </div>
+        </div>
+        <div class="mb-1">
+          <label style="display:block;font-size:12px;color:var(--muted);margin-bottom:2px;">Subject</label>
+          <input name="step_{{ loop.index }}_subject" value="{{ step.subject_template }}" style="width:100%;" placeholder="Subject line (use {{first_name}}, {{company}}, etc.)">
+        </div>
+        <div>
+          <label style="display:block;font-size:12px;color:var(--muted);margin-bottom:2px;">Body</label>
+          <textarea name="step_{{ loop.index }}_body" style="width:100%;min-height:120px;" placeholder="Email body (use {{first_name}}, {{last_name}}, {{full_name}}, {{company}}, {{domain}}, {{role}})">{{ step.body_template }}</textarea>
+        </div>
+      </div>
+      {% endfor %}
+    {% else %}
+      <div class="card mb-1 step-card" data-step="1">
+        <div class="flex-between mb-1">
+          <h3 style="margin:0;">Step 1</h3>
+          <div class="flex-gap">
+            <label class="muted" style="font-size:12px;">Delay (days):</label>
+            <input type="number" name="step_1_delay" value="0" min="0" style="width:70px;padding:4px 8px;font-size:12px;">
+          </div>
+        </div>
+        <div class="mb-1">
+          <label style="display:block;font-size:12px;color:var(--muted);margin-bottom:2px;">Subject</label>
+          <input name="step_1_subject" value="" style="width:100%;" placeholder="Subject line (use {{first_name}}, {{company}}, etc.)">
+        </div>
+        <div>
+          <label style="display:block;font-size:12px;color:var(--muted);margin-bottom:2px;">Body</label>
+          <textarea name="step_1_body" style="width:100%;min-height:120px;" placeholder="Email body (use {{first_name}}, {{last_name}}, {{full_name}}, {{company}}, {{domain}}, {{role}})"></textarea>
+        </div>
+      </div>
+    {% endif %}
+  </div>
+
+  <div class="flex-gap mt-2">
+    <button type="button" class="btn btn-secondary" onclick="addStep()">+ Add Step</button>
+    <button type="submit" class="btn">{{ 'Save Changes' if seq else 'Create Sequence' }}</button>
+  </div>
+</form>
+
+<div class="card mt-2">
+  <h3>Available Variables</h3>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;">
+    {% raw %}
+    {% endraw %}
+    {% for v in ['first_name', 'last_name', 'full_name', 'email', 'company', 'domain', 'role', 'phone', 'country'] %}
+      <code style="background:var(--bg);padding:3px 8px;border-radius:4px;font-size:12px;cursor:pointer;" data-var="{{ v }}">{% raw %}{{{% endraw %}{{ v }}{% raw %}}}{% endraw %}</code>
+    {% endfor %}
+    <script>document.querySelectorAll('[data-var]').forEach(el => el.onclick = () => navigator.clipboard.writeText('{{'+el.dataset.var+'}}'));</script>
+  </div>
+</div>
+
+<script>
+function addStep() {
+  const container = document.getElementById('steps');
+  const cards = container.querySelectorAll('.step-card');
+  const n = cards.length + 1;
+  const html = `
+    <div class="card mb-1 step-card" data-step="${n}">
+      <div class="flex-between mb-1">
+        <h3 style="margin:0;">Step ${n}</h3>
+        <div class="flex-gap">
+          <label class="muted" style="font-size:12px;">Delay (days):</label>
+          <input type="number" name="step_${n}_delay" value="3" min="0" style="width:70px;padding:4px 8px;font-size:12px;">
+          <button type="button" class="btn btn-sm btn-danger" onclick="this.closest('.step-card').remove();renumber();" style="padding:2px 8px;font-size:11px;">✕</button>
+        </div>
+      </div>
+      <div class="mb-1">
+        <label style="display:block;font-size:12px;color:var(--muted);margin-bottom:2px;">Subject</label>
+        <input name="step_${n}_subject" value="" style="width:100%;" placeholder="Subject line">
+      </div>
+      <div>
+        <label style="display:block;font-size:12px;color:var(--muted);margin-bottom:2px;">Body</label>
+        <textarea name="step_${n}_body" style="width:100%;min-height:120px;" placeholder="Email body"></textarea>
+      </div>
+    </div>`;
+  container.insertAdjacentHTML('beforeend', html);
+}
+
+function renumber() {
+  const cards = document.querySelectorAll('#steps .step-card');
+  cards.forEach((card, i) => {
+    const n = i + 1;
+    card.dataset.step = n;
+    card.querySelector('h3').textContent = 'Step ' + n;
+    card.querySelectorAll('input, textarea').forEach(el => {
+      el.name = el.name.replace(/step_\d+/, 'step_' + n);
+    });
+  });
+}
+</script>
+{% endblock %}

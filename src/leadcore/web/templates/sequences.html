@@ -1,0 +1,45 @@
+{% extends "base_new.html" %}
+
+{% block title %}Sequences — ReachDesk{% endblock %}
+{% block page_title %}Sequences{% endblock %}
+
+{% block topbar_actions %}
+<a href="/sequences/new" class="btn">+ New Sequence</a>
+{% endblock %}
+
+{% block body %}
+{% if sequences %}
+<div class="card">
+  <table>
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Steps</th>
+        <th>Owner</th>
+        <th>Created</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for seq in sequences %}
+      <tr style="cursor:pointer" onclick="location='/sequences/{{ seq.id }}'">
+        <td style="font-weight:600;">{{ seq.name }}</td>
+        <td>{{ seq.steps|length }} step{{ 's' if seq.steps|length != 1 }}</td>
+        <td class="muted">{{ seq.owner.name if seq.owner else '—' }}</td>
+        <td class="muted" style="font-size:12px;">{{ seq.created_at.strftime('%b %d, %Y') }}</td>
+        <td>
+          <a href="/sequences/{{ seq.id }}" class="btn btn-sm btn-secondary">Edit</a>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="card" style="text-align:center;padding:48px 20px;">
+  <p class="muted" style="font-size:16px;">No sequences yet</p>
+  <p class="muted" style="margin-top:8px;">Create a multi-step email sequence to assign to your leads.</p>
+  <p style="margin-top:20px;"><a href="/sequences/new" class="btn" style="display:inline-block;">+ Create Sequence</a></p>
+</div>
+{% endif %}
+{% endblock %}

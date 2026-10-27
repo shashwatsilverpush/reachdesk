@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Register — ReachDesk</title>
+<style>
+  :root { --accent:#1f3864; --bg:#f6f7f9; --card:#fff; --ink:#1f2933; --muted:#6b7280; --line:#e5e7eb; --err:#c62828; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:15px/1.5 -apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--ink);
+         display:flex; align-items:center; justify-content:center; min-height:100vh; padding:16px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:36px 32px; width:100%; max-width:380px; }
+  .logo { font-size:22px; font-weight:700; color:var(--accent); text-align:center; margin-bottom:6px; letter-spacing:-.02em; }
+  .subtitle { text-align:center; font-size:14px; color:var(--muted); margin-bottom:24px; }
+  label { display:block; font-size:13px; color:var(--muted); margin-bottom:4px; font-weight:500; }
+  input { width:100%; padding:10px 12px; border:1px solid var(--line); border-radius:8px; font:inherit; margin-bottom:16px; }
+  input:focus { outline:none; border-color:var(--accent); box-shadow:0 0 0 3px rgba(31,56,100,.12); }
+  button { width:100%; padding:11px; background:var(--accent); color:#fff; border:none; border-radius:8px;
+           font:inherit; font-weight:600; cursor:pointer; }
+  button:hover { opacity:.92; }
+  .error { background:#fef2f2; border:1px solid #fecaca; color:var(--err); border-radius:8px;
+           padding:10px 12px; font-size:13px; margin-bottom:16px; }
+  .footer { text-align:center; margin-top:18px; font-size:13px; color:var(--muted); }
+  .footer a { color:var(--accent); text-decoration:none; font-weight:500; }
+  .footer a:hover { text-decoration:underline; }
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="logo">ReachDesk</div>
+  <div class="subtitle">Create your account</div>
+  {% if error %}<div class="error">{{ error }}</div>{% endif %}
+  <form method="post" action="/register">
+    <label for="name">Full name</label>
+    <input id="name" name="name" value="{{ name or '' }}" required autofocus>
+    <label for="email">Email</label>
+    <input id="email" name="email" type="email" value="{{ email or '' }}" required>
+    <label for="password">Password</label>
+    <input id="password" name="password" type="password" required minlength="6">
+    <label for="confirm">Confirm password</label>
+    <input id="confirm" name="confirm" type="password" required minlength="6">
+    <button type="submit">Create account</button>
+  </form>
+  <div class="footer">Already have an account? <a href="/login">Log in</a></div>
+</div>
+</body>
+</html>
