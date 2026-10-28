@@ -74,8 +74,8 @@
 </div>
 {% else %}
 
-{# ── Collect all hits into found / not_found lists ── #}
-{% set ns = namespace(found=[], notfound=[]) %}
+{# ── Collect all hits into found / unverified / not_found lists ── #}
+{% set ns = namespace(found=[], unverified=[], notfound=[]) %}
 {% if result and result.candidates %}
   {% for c in result.candidates %}
     {% set v = live_verify.get(c.address, {}) %}
@@ -83,6 +83,8 @@
       {% set ns.found = ns.found + [{'email': c.address, 'pattern': '', 'source': 'pattern'}] %}
     {% elif v.verdict == 'invalid' %}
       {% set ns.notfound = ns.notfound + [{'email': c.address, 'pattern': ''}] %}
+    {% elif v %}
+      {% set ns.unverified = ns.unverified + [{'email': c.address, 'pattern': '', 'reason': v.get('reason', 'unknown')}] %}
     {% else %}
       {% set ns.found = ns.found + [{'email': c.address, 'pattern': '', 'source': 'pattern'}] %}
     {% endif %}
@@ -95,19 +97,20 @@
     {% elif h.exists is false %}
       {% set ns.notfound = ns.notfound + [{'email': h.email, 'pattern': h.pattern}] %}
     {% else %}
-      {% set ns.notfound = ns.notfound + [{'email': h.email, 'pattern': h.pattern}] %}
+      {% set ns.unverified = ns.unverified + [{'email': h.email, 'pattern': h.pattern, 'reason': 'unverified'}] %}
     {% endif %}
   {% endfor %}
 {% endif %}
 
 <!-- Results -->
 <style>
-  .results-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
-  @media (max-width:800px) { .results-grid { grid-template-columns:1fr; } }
+  .results-grid { display:grid; grid-template-columns:1fr 1fr 1fr; gap:16px; }
+  @media (max-width:900px) { .results-grid { grid-template-columns:1fr; } }
   .result-col { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:16px 18px; }
   .result-col h3 { display:flex; align-items:center; gap:8px; margin-bottom:12px; }
   .result-col h3 .count { display:inline-flex; align-items:center; justify-content:center; min-width:22px; height:22px; border-radius:11px; font-size:11px; font-weight:700; color:#fff; padding:0 6px; }
   .count-found { background:var(--s-won); }
+  .count-unverified { background:#f59e0b; }
   .count-notfound { background:var(--s-lost); }
   .hit-row { display:flex; align-items:center; padding:8px 10px; border-radius:6px; font-size:13px; transition:background .12s; }
   .hit-row:hover { background:#f4f5f7; }
@@ -122,6 +125,20 @@
   .nf-row { display:flex; align-items:center; padding:6px 10px; font-size:13px; color:var(--muted); }
   .nf-row .email { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:12px; text-decoration:line-through; opacity:.6; }
   .nf-row .pattern-tag { font-size:11px; margin-left:6px; opacity:.5; }
+  .uv-row { display:flex; align-items:center; padding:8px 10px; border-radius:6px; font-size:13px; transition:background .12s; }
+  .uv-row:hover { background:#fffbeb; }
+  .uv-row .email { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:12px; word-break:break-all; }
+  .uv-row .pattern-tag { color:var(--muted); font-size:11px; margin-left:6px; }
+  .uv-row .uv-actions { margin-left:auto; display:flex; gap:4px; opacity:0; transition:opacity .12s; }
+  .uv-row:hover .uv-actions { opacity:1; }
+  .uv-row .select-btn { padding:3px 10px; font-size:11px; font-weight:600; background:var(--accent); color:#fff; border:none; border-radius:6px; cursor:pointer; white-space:nowrap; }
+  .uv-row .copy-btn { padding:3px 8px; font-size:11px; font-weight:500; background:transparent; color:var(--muted); border:1px solid var(--line); border-radius:6px; cursor:pointer; white-space:nowrap; }
+  .uv-row .copy-btn:hover { border-color:var(--muted); }
+  .uv-row .selected-tag { margin-left:auto; font-size:11px; font-weight:600; color:var(--s-won); display:none; }
+  .uv-row.is-selected { background:#f0fdf4; }
+  .uv-row.is-selected .uv-actions { display:none; }
+  .uv-row.is-selected .selected-tag { display:inline; }
+  .uv-reason { font-size:10px; color:#b45309; margin-left:4px; }
 </style>
 
 {% if dp %}
@@ -146,6 +163,28 @@
       {% endfor %}
     {% else %}
       <p class="muted" style="font-size:13px;">No confirmed addresses found.</p>
+    {% endif %}
+  </div>
+
+  <!-- Unverified -->
+  <div class="result-col">
+    <h3>Unverified <span class="count count-unverified">{{ ns.unverified|length }}</span></h3>
+    {% if ns.unverified %}
+      <p class="muted" style="font-size:11px; margin:-6px 0 10px;">Could not confirm — catch-all domain or probe blocked. You can still select one if you're confident.</p>
+      {% for h in ns.unverified %}
+      <div class="uv-row" data-email="{{ h.email }}">
+        <span class="email">{{ h.email }}</span>
+        {% if h.pattern %}<span class="pattern-tag">{{ h.pattern }}</span>{% endif %}
+        {% if h.reason and h.reason != 'unverified' %}<span class="uv-reason">({{ h.reason | replace('_', ' ') }})</span>{% endif %}
+        <div class="uv-actions">
+          <button class="copy-btn" onclick="navigator.clipboard.writeText('{{ h.email }}');this.textContent='Copied';setTimeout(()=>this.textContent='Copy',1200)">Copy</button>
+          <button class="select-btn" onclick="selectEmail(this, '{{ h.email }}')">Select</button>
+        </div>
+        <span class="selected-tag">Selected</span>
+      </div>
+      {% endfor %}
+    {% else %}
+      <p class="muted" style="font-size:13px;">Nothing to verify.</p>
     {% endif %}
   </div>
 

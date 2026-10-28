@@ -125,7 +125,7 @@ def smtp_check(
     email: str,
     domain: str,
     mx_hosts: list[str],
-    sender: str = "verify@example.org",
+    sender: str = "",
     helo: str | None = None,
     timeout: int = 15,
     port: int = 25,
@@ -142,6 +142,8 @@ def smtp_check(
     This function preserves the baseline ``check_email`` behavior with
     the addition of configurable retries and port.
     """
+    if not sender:
+        sender = f"verify@{domain}"
     all_notes: list[str] = []
     actual_retries = 0
 

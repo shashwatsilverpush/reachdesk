@@ -40,7 +40,7 @@ from email_verifier.syntax import check_syntax
 def verify_email(
     email: str,
     *,
-    sender: str = "verify@example.org",
+    sender: str = "",
     helo: str | None = None,
     timeout: int = 15,
     port: int = 25,

@@ -36,8 +36,8 @@ def _build_parser() -> argparse.ArgumentParser:
         "-f", "--file", help="file with one address per line ('#' comments allowed)"
     )
     verify.add_argument(
-        "-s", "--sender", default="verify@example.org",
-        help="MAIL FROM address — use a real one on a domain you control (default: verify@example.org)",
+        "-s", "--sender", default="",
+        help="MAIL FROM address (default: verify@<target-domain>)",
     )
     verify.add_argument(
         "--helo", help="hostname for the EHLO command (default: local FQDN)"
