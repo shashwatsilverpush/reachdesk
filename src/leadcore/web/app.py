@@ -78,6 +78,15 @@ NAV = [
 
 app = FastAPI(title="ReachDesk")
 
+
+@app.on_event("startup")
+def _ensure_db():
+    """Create tables if running without alembic (e.g. fresh container)."""
+    from leadcore.models import Base
+    eng = db.engine()
+    Base.metadata.create_all(eng)
+
+
 _LEAD_STATUSES = [s.value for s in LeadStatus]
 
 # ---------------------------------------------------------------------------
