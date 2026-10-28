@@ -79,12 +79,25 @@ NAV = [
 app = FastAPI(title="ReachDesk")
 
 
+_DEFAULT_ADMIN_EMAIL = "shashwat.shukla@silverpush.co"
+
+
 @app.on_event("startup")
 def _ensure_db():
     """Create tables if running without alembic (e.g. fresh container)."""
     from leadcore.models import Base
     eng = db.engine()
     Base.metadata.create_all(eng)
+    with db.session() as s:
+        admin = s.scalars(select(CRMUser).where(CRMUser.email == _DEFAULT_ADMIN_EMAIL)).first()
+        if not admin:
+            s.add(CRMUser(
+                name="Shashwat Shukla",
+                email=_DEFAULT_ADMIN_EMAIL,
+                role=UserRole.admin.value,
+                is_admin=True,
+                active=True,
+            ))
 
 
 _LEAD_STATUSES = [s.value for s in LeadStatus]
@@ -517,8 +530,7 @@ def register_submit(request: Request, name: str = Form(""), email: str = Form(""
             existing.name = name.strip()
             uid = existing.id
         else:
-            has_any_user = s.scalar(select(func.count()).select_from(CRMUser)) > 0
-            if has_any_user:
+            if email.strip().lower() != _DEFAULT_ADMIN_EMAIL:
                 return TEMPLATES.TemplateResponse(request, "register.html",
                     {**ctx, "error": "Your email is not registered. Ask your admin to add you as a team member first."})
             user = CRMUser(
@@ -614,8 +626,7 @@ def _sso_callback_inner(request: Request, code: str, state: str, error: str):
                 user.name = name
             uid = user.id
         else:
-            has_any_user = s.scalar(select(func.count()).select_from(CRMUser)) > 0
-            if has_any_user:
+            if email != _DEFAULT_ADMIN_EMAIL:
                 return TEMPLATES.TemplateResponse(request, "login.html",
                                                   {"error": "Your email is not registered. Ask your admin to add you as a team member first.", "sso_enabled": SSO_ENABLED})
             user = CRMUser(
