@@ -12,6 +12,12 @@
 {% endblock %}
 
 {% block body %}
+{% if msg %}
+<div id="toast-msg" style="position:fixed; top:20px; right:20px; z-index:9999; background:#ecfdf5; border:1px solid #6ee7b7; color:#065f46; padding:12px 20px; border-radius:8px; box-shadow:0 4px 12px rgba(0,0,0,.1); font-size:13px; font-weight:600;">
+  {{ msg }}
+</div>
+<script>setTimeout(function(){var t=document.getElementById('toast-msg');if(t){t.style.transition='opacity .3s';t.style.opacity='0';setTimeout(function(){t.remove();},300);}},3000);</script>
+{% endif %}
 {% if error is defined and error %}
 <div class="error-note">{{ error }}</div>
 {% endif %}

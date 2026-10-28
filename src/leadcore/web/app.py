@@ -1429,11 +1429,11 @@ async def sequence_create(request: Request):
             i += 1
 
         seq_id = seq.id
-    return RedirectResponse(f"/sequences/{seq_id}", status_code=303)
+    return RedirectResponse(f"/sequences/{seq_id}?msg=Sequence+created+successfully", status_code=303)
 
 
 @app.get("/sequences/{seq_id}", response_class=HTMLResponse)
-def sequence_detail(request: Request, seq_id: int):
+def sequence_detail(request: Request, seq_id: int, msg: str = ""):
     user = _require_user(request)
     if not user:
         return RedirectResponse("/login", status_code=302)
@@ -1444,7 +1444,7 @@ def sequence_detail(request: Request, seq_id: int):
         ).unique().first()
         if not seq:
             return RedirectResponse("/sequences", status_code=302)
-    return _page(request, "sequence_detail.html", seq=seq)
+    return _page(request, "sequence_detail.html", seq=seq, msg=msg)
 
 
 @app.post("/sequences/{seq_id}", response_class=HTMLResponse)
@@ -1478,7 +1478,7 @@ async def sequence_update(request: Request, seq_id: int):
                 ))
             i += 1
 
-    return RedirectResponse(f"/sequences/{seq_id}", status_code=303)
+    return RedirectResponse(f"/sequences/{seq_id}?msg=Sequence+updated+successfully", status_code=303)
 
 
 @app.post("/sequences/{seq_id}/delete")

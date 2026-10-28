@@ -4,9 +4,9 @@
 
 {% block body %}
 <div style="display:flex; gap:10px; margin-bottom:20px;">
-  <a href="/settings/team" class="btn btn-sm" style="background:var(--accent);">Team</a>
-  <a href="/settings/templates" class="btn btn-sm btn-secondary">Templates</a>
-  <a href="/settings/account" class="btn btn-sm btn-secondary">Account</a>
+  <a href="/settings/team" class="btn btn-sm">Team</a>
+  <a href="/settings/templates" class="btn btn-sm" style="background:transparent; border:1px solid var(--line); color:var(--ink);">Templates</a>
+  <a href="/settings/account" class="btn btn-sm" style="background:transparent; border:1px solid var(--line); color:var(--ink);">Account</a>
 </div>
 
 {% if error %}
@@ -100,6 +100,7 @@
   {% endif %}
 </div>
 
+{% if users %}
 <div class="card">
   <h2>Add Team Member</h2>
   <form method="post" action="/settings/team" style="display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end;">
@@ -139,6 +140,7 @@
 
 <div class="card">
   <h2>Role Permissions</h2>
+
   <table style="font-size:13px;">
     <thead>
       <tr><th>Permission</th><th>Admin</th><th>Manager</th><th>Member</th></tr>
@@ -153,6 +155,7 @@
     </tbody>
   </table>
 </div>
+{% endif %}
 
 <script>
 function toggleEdit(userId) {

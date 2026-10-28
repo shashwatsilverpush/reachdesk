@@ -4,14 +4,14 @@
 
 {% block body %}
 <style>
-  .kpi-tile { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:18px 20px; text-align:center; }
-  .kpi-tile .number { font-size:28px; font-weight:800; line-height:1.1; }
+  .kpi-tile { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:18px 20px; text-align:center; border-left:3px solid var(--line); }
+  .kpi-tile .number { font-size:28px; font-weight:800; line-height:1.1; color:var(--ink); }
   .kpi-tile .label { font-size:12px; color:var(--muted); margin-top:4px; }
   .pipeline-row { display:flex; align-items:center; gap:10px; margin-bottom:8px; }
   .pipeline-label { width:100px; font-size:12px; font-weight:600; text-align:right; white-space:nowrap; }
-  .pipeline-track { flex:1; height:28px; background:#f3f4f6; border-radius:6px; overflow:hidden; }
-  .pipeline-bar { height:100%; border-radius:6px; display:flex; align-items:center; padding-left:8px; min-width:2px; transition:width .3s; }
-  .pipeline-bar span { color:#fff; font-size:11px; font-weight:700; }
+  .pipeline-track { flex:1; height:24px; background:#eef0f4; border-radius:6px; overflow:hidden; }
+  .pipeline-bar { height:100%; border-radius:6px; min-width:2px; transition:width .3s; }
+  .pipeline-count { font-size:12px; font-weight:600; color:var(--ink); min-width:30px; text-align:right; }
   .chart-wrap { position:relative; max-width:260px; margin:0 auto; }
 </style>
 
@@ -19,24 +19,24 @@
 
 <!-- KPI Tiles -->
 <div class="grid-auto mb-2">
-  <div class="kpi-tile">
-    <div class="number" style="color:var(--ink);">{{ total_leads }}</div>
+  <div class="kpi-tile" style="border-left-color:var(--accent);">
+    <div class="number">{{ total_leads }}</div>
     <div class="label">Total Leads</div>
   </div>
-  <div class="kpi-tile">
-    <div class="number" style="color:var(--s-new);">{{ leads_this_week }}</div>
+  <div class="kpi-tile" style="border-left-color:var(--s-new);">
+    <div class="number">{{ leads_this_week }}</div>
     <div class="label">This Week</div>
   </div>
-  <div class="kpi-tile">
-    <div class="number" style="color:var(--accent);">{{ leads_this_month }}</div>
+  <div class="kpi-tile" style="border-left-color:var(--s-replied);">
+    <div class="number">{{ leads_this_month }}</div>
     <div class="label">This Month</div>
   </div>
-  <div class="kpi-tile">
-    <div class="number" style="color:var(--s-won);">{{ pipeline.get('won', 0) }}</div>
+  <div class="kpi-tile" style="border-left-color:var(--s-won);">
+    <div class="number">{{ pipeline.get('won', 0) }}</div>
     <div class="label">Won</div>
   </div>
-  <div class="kpi-tile">
-    <div class="number" style="color:var(--s-lost);">{{ pipeline.get('lost', 0) }}</div>
+  <div class="kpi-tile" style="border-left-color:var(--s-lost);">
+    <div class="number">{{ pipeline.get('lost', 0) }}</div>
     <div class="label">Lost</div>
   </div>
 </div>
@@ -48,10 +48,9 @@
   <div class="pipeline-row">
     <span class="pipeline-label">{{ status_val.replace('_', ' ').title() }}</span>
     <div class="pipeline-track">
-      <div class="pipeline-bar" style="width:{{ (count / max_count * 100)|round(1) if max_count else 0 }}%; background:var(--s-{{ status_val }});">
-        {% if count %}<span>{{ count }}</span>{% endif %}
-      </div>
+      <div class="pipeline-bar" style="width:{{ (count / max_count * 100)|round(1) if max_count else 0 }}%; background:var(--s-{{ status_val }});"></div>
     </div>
+    <span class="pipeline-count">{{ count }}</span>
   </div>
   {% endfor %}
 </div>
@@ -103,7 +102,7 @@
 <script>
 var statusLabels = [{% for s in pipeline %}'{{ s.replace("_"," ").title() }}',{% endfor %}];
 var statusData = [{% for s, c in pipeline.items() %}{{ c }},{% endfor %}];
-var statusColors = ['#2563eb','#c2410c','#a16207','#0e7490','#7c3aed','#16a34a','#dc2626'];
+var statusColors = ['#3b82f6','#8b5cf6','#f59e0b','#06b6d4','#6366f1','#10b981','#ef4444'];
 
 new Chart(document.getElementById('statusChart'), {
   type: 'doughnut',
@@ -132,7 +131,7 @@ new Chart(document.getElementById('teamChart'), {
     datasets: [{
       label: 'Leads',
       data: [{% for name, count in team_stats %}{{ count }},{% endfor %}],
-      backgroundColor: '#1f3864',
+      backgroundColor: '#475569',
       borderRadius: 4
     }]
   },
