@@ -1794,6 +1794,70 @@ def settings_account_update(request: Request, current_password: str = Form(""),
     return RedirectResponse("/settings/account?msg=Password+updated", status_code=303)
 
 
+@app.post("/settings/account/smtp")
+def settings_smtp_save(request: Request, smtp_host: str = Form(""), smtp_port: int = Form(587),
+                       smtp_user: str = Form(""), smtp_password: str = Form("")):
+    user = _require_user(request)
+    if not user:
+        return RedirectResponse("/login", status_code=302)
+    with db.session() as s:
+        u = s.get(CRMUser, user.id)
+        if u:
+            u.smtp_host = smtp_host.strip() or None
+            u.smtp_port = smtp_port or 587
+            u.smtp_user = smtp_user.strip() or None
+            u.smtp_password = smtp_password.strip() or None
+    return RedirectResponse("/settings/account?msg=SMTP+settings+updated", status_code=303)
+
+
+@app.post("/settings/account/smtp/test")
+def settings_smtp_test(request: Request):
+    user = _require_user(request)
+    if not user:
+        return JSONResponse({"ok": False, "error": "Not logged in"}, status_code=401)
+    with db.session() as s:
+        u = s.get(CRMUser, user.id)
+        if not u or not u.smtp_host or not u.smtp_password:
+            return JSONResponse({"ok": False, "error": "SMTP not configured. Save settings first."})
+        try:
+            _send_email(
+                smtp_host=u.smtp_host,
+                smtp_port=u.smtp_port or 587,
+                smtp_user=u.smtp_user or u.email,
+                smtp_password=u.smtp_password,
+                from_email=u.smtp_user or u.email,
+                to_email=u.email,
+                subject="ReachDesk SMTP Test",
+                body="This is a test email from ReachDesk. Your SMTP settings are working correctly!",
+            )
+            return JSONResponse({"ok": True})
+        except Exception as exc:
+            return JSONResponse({"ok": False, "error": str(exc)})
+
+
+def _send_email(*, smtp_host: str, smtp_port: int, smtp_user: str, smtp_password: str,
+                from_email: str, to_email: str, subject: str, body: str,
+                from_name: str = ""):
+    import smtplib
+    from email.mime.text import MIMEText
+    from email.utils import formataddr
+
+    msg = MIMEText(body, "plain", "utf-8")
+    msg["Subject"] = subject
+    msg["From"] = formataddr((from_name, from_email)) if from_name else from_email
+    msg["To"] = to_email
+
+    if smtp_port == 465:
+        with smtplib.SMTP_SSL(smtp_host, smtp_port, timeout=15) as s:
+            s.login(smtp_user, smtp_password)
+            s.send_message(msg)
+    else:
+        with smtplib.SMTP(smtp_host, smtp_port, timeout=15) as s:
+            s.starttls()
+            s.login(smtp_user, smtp_password)
+            s.send_message(msg)
+
+
 # ===================================================================
 #  VERIFY (power-user, hidden from nav)
 # ===================================================================

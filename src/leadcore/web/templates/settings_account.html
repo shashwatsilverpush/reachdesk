@@ -24,6 +24,47 @@
 </div>
 
 <div class="card">
+  <h2>Email (SMTP) Configuration</h2>
+  <p class="muted" style="font-size:12px; margin-bottom:12px;">Configure your email sending credentials. ReachDesk will send outreach emails on your behalf using these settings.</p>
+  <form method="post" action="/settings/account/smtp" style="display:flex; flex-direction:column; gap:12px;">
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+      <div>
+        <label style="font-size:12px; color:var(--muted); display:block; margin-bottom:2px;">SMTP Host</label>
+        <input name="smtp_host" value="{{ current_user.smtp_host or 'smtp.gmail.com' }}" placeholder="smtp.gmail.com" style="width:100%;">
+      </div>
+      <div>
+        <label style="font-size:12px; color:var(--muted); display:block; margin-bottom:2px;">SMTP Port</label>
+        <input name="smtp_port" type="number" value="{{ current_user.smtp_port or 587 }}" placeholder="587" style="width:100%;">
+      </div>
+    </div>
+    <div>
+      <label style="font-size:12px; color:var(--muted); display:block; margin-bottom:2px;">SMTP Username (your email)</label>
+      <input name="smtp_user" value="{{ current_user.smtp_user or current_user.email }}" placeholder="{{ current_user.email }}" style="width:100%;">
+    </div>
+    <div>
+      <label style="font-size:12px; color:var(--muted); display:block; margin-bottom:2px;">App Password</label>
+      <input name="smtp_password" type="password" value="{{ current_user.smtp_password or '' }}" placeholder="{{ '••••••••' if current_user.smtp_password else 'Paste your app password' }}" style="width:100%;">
+      <p class="muted" style="font-size:11px; margin-top:4px;">For Gmail / Google Workspace: generate at <a href="https://myaccount.google.com/apppasswords" target="_blank" class="link">myaccount.google.com/apppasswords</a></p>
+    </div>
+    <div style="display:flex; gap:8px;">
+      <button>Save SMTP Settings</button>
+      <button type="button" class="btn btn-secondary" onclick="testSmtp(this)">Send Test Email</button>
+    </div>
+  </form>
+  {% if current_user.smtp_host and current_user.smtp_password %}
+  <div style="margin-top:10px; display:flex; align-items:center; gap:6px;">
+    <span class="pill s-won" style="font-size:10px;">Configured</span>
+    <span class="muted" style="font-size:12px;">Emails will be sent from {{ current_user.smtp_user or current_user.email }}</span>
+  </div>
+  {% else %}
+  <div style="margin-top:10px; display:flex; align-items:center; gap:6px;">
+    <span class="pill s-lost" style="font-size:10px;">Not configured</span>
+    <span class="muted" style="font-size:12px;">Email sending is disabled until SMTP is set up</span>
+  </div>
+  {% endif %}
+</div>
+
+<div class="card">
   <h2>Change Password</h2>
   <form method="post" action="/settings/account" style="display:flex; flex-direction:column; gap:12px;">
     <div>
@@ -42,4 +83,32 @@
   </form>
 </div>
 </div>
+
+<div id="test-toast" style="display:none; position:fixed; top:20px; right:20px; z-index:9999; padding:12px 20px; border-radius:8px; box-shadow:0 4px 12px rgba(0,0,0,.1); font-size:13px; font-weight:600;"></div>
+<script>
+function testSmtp(btn) {
+  btn.disabled = true;
+  btn.textContent = 'Sending...';
+  fetch('/settings/account/smtp/test', {method:'POST'})
+    .then(r => r.json())
+    .then(data => {
+      var toast = document.getElementById('test-toast');
+      if (data.ok) {
+        toast.style.background = '#ecfdf5';
+        toast.style.border = '1px solid #6ee7b7';
+        toast.style.color = '#065f46';
+        toast.textContent = 'Test email sent! Check your inbox.';
+      } else {
+        toast.style.background = '#fef2f2';
+        toast.style.border = '1px solid #fca5a5';
+        toast.style.color = '#991b1b';
+        toast.textContent = 'Failed: ' + data.error;
+      }
+      toast.style.display = 'block';
+      setTimeout(function(){ toast.style.display='none'; }, 5000);
+    })
+    .catch(function(){ alert('Network error'); })
+    .finally(function(){ btn.disabled = false; btn.textContent = 'Send Test Email'; });
+}
+</script>
 {% endblock %}

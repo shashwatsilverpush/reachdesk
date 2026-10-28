@@ -232,6 +232,10 @@ class CRMUser(Base):
     password_hash: Mapped[str | None] = mapped_column(String(255))
     is_admin: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     manager_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("crm_users.id"))
+    smtp_host: Mapped[str | None] = mapped_column(String(255))
+    smtp_port: Mapped[int | None] = mapped_column(Integer)
+    smtp_user: Mapped[str | None] = mapped_column(String(320))
+    smtp_password: Mapped[str | None] = mapped_column(String(255))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
     manager: Mapped["CRMUser | None"] = relationship("CRMUser", remote_side=[id], foreign_keys=[manager_id])
