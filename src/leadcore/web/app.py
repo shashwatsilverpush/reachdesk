@@ -85,19 +85,27 @@ _DEFAULT_ADMIN_EMAIL = "shashwat.shukla@silverpush.co"
 @app.on_event("startup")
 def _ensure_db():
     """Create tables if running without alembic (e.g. fresh container)."""
-    from leadcore.models import Base
-    eng = db.engine()
-    Base.metadata.create_all(eng)
-    with db.session() as s:
-        admin = s.scalars(select(CRMUser).where(CRMUser.email == _DEFAULT_ADMIN_EMAIL)).first()
-        if not admin:
-            s.add(CRMUser(
-                name="Shashwat Shukla",
-                email=_DEFAULT_ADMIN_EMAIL,
-                role=UserRole.admin.value,
-                is_admin=True,
-                active=True,
-            ))
+    import logging
+    log = logging.getLogger("leadcore.startup")
+    try:
+        from leadcore.models import Base
+        eng = db.engine()
+        log.info("Connecting to database: %s", db.default_url().split("@")[-1] if "@" in db.default_url() else "sqlite")
+        Base.metadata.create_all(eng)
+        log.info("Database tables ensured")
+        with db.session() as s:
+            admin = s.scalars(select(CRMUser).where(CRMUser.email == _DEFAULT_ADMIN_EMAIL)).first()
+            if not admin:
+                s.add(CRMUser(
+                    name="Shashwat Shukla",
+                    email=_DEFAULT_ADMIN_EMAIL,
+                    role=UserRole.admin.value,
+                    is_admin=True,
+                    active=True,
+                ))
+        log.info("Startup complete")
+    except Exception as exc:
+        log.error("Database connection failed: %s — app will start but DB operations will fail", exc)
 
 
 _LEAD_STATUSES = [s.value for s in LeadStatus]

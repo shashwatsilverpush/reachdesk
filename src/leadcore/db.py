@@ -21,7 +21,12 @@ def default_url() -> str:
 
 
 def engine(url: str | None = None) -> Engine:
-    return create_engine(url or default_url(), future=True)
+    resolved = url or default_url()
+    kwargs: dict = {"future": True}
+    if resolved.startswith("postgresql"):
+        kwargs["connect_args"] = {"connect_timeout": 5}
+        kwargs["pool_pre_ping"] = True
+    return create_engine(resolved, **kwargs)
 
 
 def migrate(url: str | None = None) -> None:
