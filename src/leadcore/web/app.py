@@ -1176,6 +1176,19 @@ def import_leads_page(request: Request):
     return _page(request, "import_leads.html", step="upload")
 
 
+@app.get("/import-leads/sample.csv")
+def import_leads_sample():
+    header = "First Name,Last Name,Email,Company,Domain,LinkedIn URL,Role Title,Phone,Country,Status,Notes"
+    rows = [
+        "John,Doe,john.doe@acme.com,Acme Inc,acme.com,https://linkedin.com/in/johndoe,VP Sales,+1-555-0101,United States,new,Met at SaaStr 2026",
+        "Jane,Smith,jane.smith@globex.com,Globex Corp,globex.com,,Head of Marketing,+44-20-7946-0958,United Kingdom,contacted,Interested in enterprise plan",
+        "Raj,Patel,raj.patel@techfirm.in,TechFirm,techfirm.in,https://linkedin.com/in/rajpatel,CTO,,India,new,Referral from Priya",
+    ]
+    content = header + "\n" + "\n".join(rows) + "\n"
+    return PlainTextResponse(content, media_type="text/csv",
+                             headers={"Content-Disposition": "attachment; filename=reachdesk_sample_import.csv"})
+
+
 @app.post("/import-leads/preview", response_class=HTMLResponse)
 async def import_leads_preview(request: Request, file: UploadFile):
     user = _require_user(request)
@@ -1379,6 +1392,43 @@ def scope_generate(request: Request, first: str = Form(""), last: str = Form("")
 #  SEQUENCES
 # ===================================================================
 
+_SEQUENCE_TEMPLATES = {
+    "cold-outreach": {
+        "name": "Cold Outreach",
+        "desc": "3-step cold outreach for new prospects",
+        "steps": [
+            {"delay": 0, "subject": "Quick question, {{first_name}}", "body": "Hi {{first_name}},\n\nI came across {{company}} and was impressed by the work your team is doing.\n\nI'd love to share how we've helped similar companies in your space. Would you be open to a brief 15-minute call this week?\n\nBest,\n[Your Name]"},
+            {"delay": 3, "subject": "Following up — {{company}}", "body": "Hi {{first_name}},\n\nJust wanted to make sure my last email didn't get lost. I think there's a great fit between what we do and {{company}}'s goals.\n\nHappy to work around your schedule — even a quick 10-minute chat would be great.\n\nBest,\n[Your Name]"},
+            {"delay": 5, "subject": "Last check-in, {{first_name}}", "body": "Hi {{first_name}},\n\nI don't want to be a nuisance, so this will be my last note for now.\n\nIf the timing isn't right, no worries at all. But if you'd like to explore how we can help {{company}}, I'm here whenever you're ready.\n\nCheers,\n[Your Name]"},
+        ],
+    },
+    "warm-intro": {
+        "name": "Warm Introduction",
+        "desc": "2-step follow-up after a warm referral or event",
+        "steps": [
+            {"delay": 0, "subject": "Great connecting, {{first_name}}!", "body": "Hi {{first_name}},\n\nIt was great meeting you! As discussed, I wanted to follow up with more details on how we work with companies like {{company}}.\n\nWould love to set up a proper call to dive deeper. What does your availability look like this week?\n\nLooking forward,\n[Your Name]"},
+            {"delay": 4, "subject": "Re: Great connecting, {{first_name}}!", "body": "Hi {{first_name}},\n\nJust circling back on my earlier note. I'd love to continue our conversation and explore how we can work together.\n\nLet me know a time that works for you — happy to be flexible.\n\nBest,\n[Your Name]"},
+        ],
+    },
+    "re-engagement": {
+        "name": "Re-engagement",
+        "desc": "2-step sequence for cold or lost leads",
+        "steps": [
+            {"delay": 0, "subject": "Still relevant, {{first_name}}?", "body": "Hi {{first_name}},\n\nWe connected a while back but the timing wasn't right. I wanted to check in — things may have changed at {{company}} since then.\n\nWe've added some exciting new capabilities that might be relevant. Worth a quick chat?\n\nBest,\n[Your Name]"},
+            {"delay": 5, "subject": "One more thought for {{company}}", "body": "Hi {{first_name}},\n\nI know inboxes get busy, so I'll keep this short. If priorities have shifted and there's room to explore, I'd love to reconnect.\n\nIf not, no hard feelings — wishing you and the {{company}} team all the best.\n\nCheers,\n[Your Name]"},
+        ],
+    },
+    "meeting-booked": {
+        "name": "Meeting Follow-up",
+        "desc": "Pre-meeting reminder and post-meeting thank you",
+        "steps": [
+            {"delay": 0, "subject": "Looking forward to our call, {{first_name}}", "body": "Hi {{first_name}},\n\nJust a quick note to confirm our upcoming call. I've done some homework on {{company}} and have a few ideas I'd love to share.\n\nPlease let me know if the time still works or if we need to adjust.\n\nSee you soon,\n[Your Name]"},
+            {"delay": 1, "subject": "Thanks for your time, {{first_name}}!", "body": "Hi {{first_name}},\n\nThank you for taking the time to chat! It was great learning more about {{company}}'s goals.\n\nAs discussed, I'll send over the proposal by end of week. In the meantime, feel free to reach out with any questions.\n\nBest,\n[Your Name]"},
+        ],
+    },
+}
+
+
 @app.get("/sequences", response_class=HTMLResponse)
 def sequences_page(request: Request):
     user = _require_user(request)
@@ -1389,15 +1439,16 @@ def sequences_page(request: Request):
             select(Sequence).options(joinedload(Sequence.steps), joinedload(Sequence.owner))
             .order_by(Sequence.created_at.desc())
         ).unique().all()
-    return _page(request, "sequences.html", sequences=seqs)
+    return _page(request, "sequences.html", sequences=seqs, templates=_SEQUENCE_TEMPLATES)
 
 
 @app.get("/sequences/new", response_class=HTMLResponse)
-def sequence_new(request: Request):
+def sequence_new(request: Request, template: str = ""):
     user = _require_user(request)
     if not user:
         return RedirectResponse("/login", status_code=302)
-    return _page(request, "sequence_detail.html", seq=None)
+    tpl = _SEQUENCE_TEMPLATES.get(template)
+    return _page(request, "sequence_detail.html", seq=None, template=tpl)
 
 
 @app.post("/sequences", response_class=HTMLResponse)
@@ -1509,17 +1560,26 @@ def settings_team(request: Request, error: str = "", msg: str = ""):
     user = _require_user(request)
     if not user:
         return RedirectResponse("/login", status_code=302)
-    if not _is_admin(user):
+    is_admin = _is_admin(user)
+    is_manager = user.role == UserRole.manager.value
+    if not is_admin and not is_manager:
         return _page(request, "settings_team.html", users=[], managers=[], roles=_USER_ROLES,
-                     error="Only admins can manage the team.")
+                     viewer_role="member", can_add=False, can_edit_reporting=False)
     with db.session() as s:
-        users = s.scalars(
+        all_users = s.scalars(
             select(CRMUser).options(joinedload(CRMUser.leads), joinedload(CRMUser.manager))
             .order_by(CRMUser.name)
         ).unique().all()
-        managers = [u for u in users if u.role in (UserRole.admin.value, UserRole.manager.value) and u.active]
+        if is_admin:
+            users = all_users
+            managers = [u for u in all_users if u.role in (UserRole.admin.value, UserRole.manager.value) and u.active]
+        else:
+            users = [u for u in all_users if u.id == user.id or u.manager_id == user.id]
+            managers = []
     return _page(request, "settings_team.html", users=users, managers=managers,
-                 roles=_USER_ROLES, error=error, msg=msg)
+                 roles=_USER_ROLES, error=error, msg=msg,
+                 viewer_role="admin" if is_admin else "manager",
+                 can_add=True, can_edit_reporting=is_admin)
 
 
 @app.post("/settings/team")
@@ -1529,14 +1589,20 @@ def settings_team_create(request: Request, name: str = Form(""), email: str = Fo
     user = _require_user(request)
     if not user:
         return RedirectResponse("/login", status_code=302)
-    if not _is_admin(user):
-        return RedirectResponse("/settings/team?error=Only+admins+can+add+members", status_code=303)
+    is_admin = _is_admin(user)
+    is_manager = user.role == UserRole.manager.value
+    if not is_admin and not is_manager:
+        return RedirectResponse("/settings/team?error=Only+admins+and+managers+can+add+members", status_code=303)
     if not name.strip() or not email.strip():
         return RedirectResponse("/settings/team?error=Name+and+email+are+required", status_code=303)
     if password and len(password) < 6:
         return RedirectResponse("/settings/team?error=Password+must+be+at+least+6+characters", status_code=303)
-    role_val = role if role in _USER_ROLES else UserRole.member.value
-    mgr_id = int(manager_id) if manager_id else None
+    if is_manager and not is_admin:
+        role_val = UserRole.member.value
+        mgr_id = user.id
+    else:
+        role_val = role if role in _USER_ROLES else UserRole.member.value
+        mgr_id = int(manager_id) if manager_id else None
     with db.session() as s:
         existing = s.scalars(select(CRMUser).where(CRMUser.email == email.strip().lower())).first()
         if existing:
@@ -1558,26 +1624,31 @@ async def settings_team_edit(request: Request, user_id: int):
     user = _require_user(request)
     if not user:
         return RedirectResponse("/login", status_code=302)
-    if not _is_admin(user):
-        return RedirectResponse("/settings/team?error=Only+admins+can+edit+members", status_code=303)
+    is_admin = _is_admin(user)
+    is_manager = user.role == UserRole.manager.value
+    if not is_admin and not is_manager:
+        return RedirectResponse("/settings/team?error=Insufficient+permissions", status_code=303)
     form = await request.form()
-    new_role = form.get("role", "member")
     new_name = (form.get("name") or "").strip()
     new_password = (form.get("password") or "").strip()
     if new_password and len(new_password) < 6:
         return RedirectResponse("/settings/team?error=Password+must+be+at+least+6+characters", status_code=303)
-    role_val = new_role if new_role in _USER_ROLES else UserRole.member.value
-    mgr_raw = (form.get("manager_id") or "").strip()
-    mgr_id = int(mgr_raw) if mgr_raw else None
     with db.session() as s:
         u = s.get(CRMUser, user_id)
         if not u:
             return RedirectResponse("/settings/team?error=User+not+found", status_code=303)
+        if is_manager and not is_admin:
+            if u.manager_id != user.id and u.id != user.id:
+                return RedirectResponse("/settings/team?error=You+can+only+edit+your+own+reports", status_code=303)
         if new_name:
             u.name = new_name
-        u.role = role_val
-        u.is_admin = (role_val == UserRole.admin.value)
-        u.manager_id = mgr_id
+        if is_admin:
+            new_role = form.get("role", "member")
+            role_val = new_role if new_role in _USER_ROLES else UserRole.member.value
+            u.role = role_val
+            u.is_admin = (role_val == UserRole.admin.value)
+            mgr_raw = (form.get("manager_id") or "").strip()
+            u.manager_id = int(mgr_raw) if mgr_raw else None
         if new_password:
             u.password_hash = hash_password(new_password)
     return RedirectResponse("/settings/team?msg=Member+updated", status_code=303)
@@ -1588,12 +1659,18 @@ def settings_team_toggle(request: Request, user_id: int):
     user = _require_user(request)
     if not user:
         return RedirectResponse("/login", status_code=302)
-    if not _is_admin(user):
-        return RedirectResponse("/settings/team?error=Only+admins+can+change+status", status_code=303)
+    is_admin = _is_admin(user)
+    is_manager = user.role == UserRole.manager.value
+    if not is_admin and not is_manager:
+        return RedirectResponse("/settings/team?error=Insufficient+permissions", status_code=303)
     with db.session() as s:
         u = s.get(CRMUser, user_id)
-        if u:
-            u.active = not u.active
+        if not u:
+            return RedirectResponse("/settings/team?error=User+not+found", status_code=303)
+        if is_manager and not is_admin:
+            if u.manager_id != user.id:
+                return RedirectResponse("/settings/team?error=You+can+only+manage+your+own+reports", status_code=303)
+        u.active = not u.active
     return RedirectResponse("/settings/team", status_code=303)
 
 

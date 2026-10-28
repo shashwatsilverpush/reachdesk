@@ -4,12 +4,34 @@
 {% block page_title %}Sequences{% endblock %}
 
 {% block topbar_actions %}
-<a href="/sequences/new" class="btn">+ New Sequence</a>
+<a href="/sequences/new" class="btn">+ Blank Sequence</a>
 {% endblock %}
 
 {% block body %}
+<style>
+  .tpl-card:hover { border-color:var(--accent) !important; box-shadow:0 2px 8px rgba(0,0,0,.06); }
+</style>
+<!-- Templates Section -->
+<div class="card mb-2">
+  <h2>Start from a Template</h2>
+  <p class="muted" style="font-size:13px; margin-bottom:14px;">Pick a ready-made sequence and customize it, or create one from scratch.</p>
+  <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(220px, 1fr)); gap:12px;">
+    {% for key, tpl in templates.items() %}
+    <a href="/sequences/new?template={{ key }}" class="tpl-card" style="text-decoration:none; color:inherit; display:block; border:1px solid var(--line); border-radius:8px; padding:16px; transition:border-color .15s, box-shadow .15s;">
+      <div style="font-weight:700; font-size:14px; margin-bottom:4px;">{{ tpl.name }}</div>
+      <div class="muted" style="font-size:12px; margin-bottom:8px;">{{ tpl.desc }}</div>
+      <div style="display:flex; gap:6px; align-items:center;">
+        <span class="pill s-new" style="font-size:10px;">{{ tpl.steps|length }} step{{ 's' if tpl.steps|length != 1 }}</span>
+      </div>
+    </a>
+    {% endfor %}
+  </div>
+</div>
+
+<!-- Existing Sequences -->
 {% if sequences %}
 <div class="card">
+  <h2>Your Sequences</h2>
   <table>
     <thead>
       <tr>
@@ -38,8 +60,8 @@
 {% else %}
 <div class="card" style="text-align:center;padding:48px 20px;">
   <p class="muted" style="font-size:16px;">No sequences yet</p>
-  <p class="muted" style="margin-top:8px;">Create a multi-step email sequence to assign to your leads.</p>
-  <p style="margin-top:20px;"><a href="/sequences/new" class="btn" style="display:inline-block;">+ Create Sequence</a></p>
+  <p class="muted" style="margin-top:8px;">Pick a template above or create a blank multi-step email sequence.</p>
+  <p style="margin-top:20px;"><a href="/sequences/new" class="btn" style="display:inline-block;">+ Create Blank Sequence</a></p>
 </div>
 {% endif %}
 {% endblock %}

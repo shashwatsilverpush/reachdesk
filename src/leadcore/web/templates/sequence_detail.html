@@ -22,10 +22,11 @@
 <div class="error-note">{{ error }}</div>
 {% endif %}
 
+{% set tpl_steps = template.steps if template else [] %}
 <form method="post" action="{{ '/sequences/' ~ seq.id if seq else '/sequences' }}" id="seqForm">
   <div class="card mb-2">
     <label style="display:block;font-size:12px;color:var(--muted);margin-bottom:4px;font-weight:600;">Sequence Name</label>
-    <input name="name" value="{{ seq.name if seq else '' }}" required placeholder="e.g. Cold Outreach — SaaS" style="width:100%;max-width:400px;">
+    <input name="name" value="{{ seq.name if seq else (template.name if template else '') }}" required placeholder="e.g. Cold Outreach — SaaS" style="width:100%;max-width:400px;">
   </div>
 
   <div id="steps">
@@ -47,6 +48,27 @@
         <div>
           <label style="display:block;font-size:12px;color:var(--muted);margin-bottom:2px;">Body</label>
           <textarea name="step_{{ loop.index }}_body" style="width:100%;min-height:120px;" placeholder="Email body (use {{first_name}}, {{last_name}}, {{full_name}}, {{company}}, {{domain}}, {{role}})">{{ step.body_template }}</textarea>
+        </div>
+      </div>
+      {% endfor %}
+    {% elif tpl_steps %}
+      {% for step in tpl_steps %}
+      <div class="card mb-1 step-card" data-step="{{ loop.index }}">
+        <div class="flex-between mb-1">
+          <h3 style="margin:0;">Step {{ loop.index }}</h3>
+          <div class="flex-gap">
+            <label class="muted" style="font-size:12px;">Delay (days):</label>
+            <input type="number" name="step_{{ loop.index }}_delay" value="{{ step.delay }}" min="0" style="width:70px;padding:4px 8px;font-size:12px;">
+            <button type="button" class="btn btn-sm btn-danger" onclick="this.closest('.step-card').remove();renumber();" style="padding:2px 8px;font-size:11px;">✕</button>
+          </div>
+        </div>
+        <div class="mb-1">
+          <label style="display:block;font-size:12px;color:var(--muted);margin-bottom:2px;">Subject</label>
+          <input name="step_{{ loop.index }}_subject" value="{{ step.subject }}" style="width:100%;" placeholder="Subject line (use {{first_name}}, {{company}}, etc.)">
+        </div>
+        <div>
+          <label style="display:block;font-size:12px;color:var(--muted);margin-bottom:2px;">Body</label>
+          <textarea name="step_{{ loop.index }}_body" style="width:100%;min-height:120px;" placeholder="Email body">{{ step.body }}</textarea>
         </div>
       </div>
       {% endfor %}

@@ -64,6 +64,7 @@
               <label style="font-size:12px; color:var(--muted); display:block; margin-bottom:2px;">Name</label>
               <input name="name" value="{{ u.name }}" style="width:100%;">
             </div>
+            {% if can_edit_reporting %}
             <div style="min-width:120px;">
               <label style="font-size:12px; color:var(--muted); display:block; margin-bottom:2px;">Role</label>
               <select name="role" style="width:100%;">
@@ -83,6 +84,7 @@
                 {% endfor %}
               </select>
             </div>
+            {% endif %}
             <div style="min-width:150px;">
               <label style="font-size:12px; color:var(--muted); display:block; margin-bottom:2px;">New Password</label>
               <input name="password" type="password" placeholder="Leave blank to keep" style="width:100%;" minlength="6">
@@ -100,7 +102,7 @@
   {% endif %}
 </div>
 
-{% if users %}
+{% if can_add %}
 <div class="card">
   <h2>Add Team Member</h2>
   <form method="post" action="/settings/team" style="display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end;">
@@ -112,6 +114,7 @@
       <label style="font-size:12px; color:var(--muted); display:block; margin-bottom:2px;">Email *</label>
       <input name="email" type="email" required style="width:100%;">
     </div>
+    {% if can_edit_reporting %}
     <div style="min-width:120px;">
       <label style="font-size:12px; color:var(--muted); display:block; margin-bottom:2px;">Role</label>
       <select name="role" style="width:100%;">
@@ -129,15 +132,20 @@
         {% endfor %}
       </select>
     </div>
+    {% endif %}
     <div style="min-width:150px;">
       <label style="font-size:12px; color:var(--muted); display:block; margin-bottom:2px;">Password</label>
       <input name="password" type="password" placeholder="Min 6 chars" style="width:100%;" minlength="6">
     </div>
     <button>Add Member</button>
   </form>
-  <p class="muted" style="font-size:12px; margin-top:10px;">If no password is set, the member can register at the login page using the same email.</p>
+  <p class="muted" style="font-size:12px; margin-top:10px;">
+    {% if viewer_role == 'manager' %}New members will be added to your team automatically.
+    {% else %}If no password is set, the member can register at the login page using the same email.{% endif %}
+  </p>
 </div>
 
+{% if viewer_role == 'admin' %}
 <div class="card">
   <h2>Role Permissions</h2>
 
@@ -150,11 +158,13 @@
       <tr><td>Create &amp; edit leads</td><td>&#10003;</td><td>&#10003;</td><td>&#10003;</td></tr>
       <tr><td>Delete leads</td><td>&#10003;</td><td>&#10003;</td><td></td></tr>
       <tr><td>Manage sequences &amp; templates</td><td>&#10003;</td><td>&#10003;</td><td></td></tr>
-      <tr><td>Manage team members</td><td>&#10003;</td><td></td><td></td></tr>
+      <tr><td>Manage team members</td><td>&#10003;</td><td>Own team only</td><td></td></tr>
+      <tr><td>Change roles &amp; reporting</td><td>&#10003;</td><td></td><td></td></tr>
       <tr><td>Change settings</td><td>&#10003;</td><td></td><td></td></tr>
     </tbody>
   </table>
 </div>
+{% endif %}
 {% endif %}
 
 <script>
