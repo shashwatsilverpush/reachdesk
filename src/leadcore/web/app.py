@@ -511,16 +511,22 @@ def register_submit(request: Request, name: str = Form(""), email: str = Form(""
         if existing:
             if existing.password_hash:
                 return TEMPLATES.TemplateResponse(request, "register.html", {**ctx, "error": "Email already registered"})
+            if not existing.active:
+                return TEMPLATES.TemplateResponse(request, "register.html", {**ctx, "error": "Account deactivated. Contact your admin."})
             existing.password_hash = hash_password(password)
             existing.name = name.strip()
             uid = existing.id
         else:
-            is_first = s.scalar(select(func.count()).select_from(CRMUser).where(CRMUser.password_hash.isnot(None))) == 0
+            has_any_user = s.scalar(select(func.count()).select_from(CRMUser)) > 0
+            if has_any_user:
+                return TEMPLATES.TemplateResponse(request, "register.html",
+                    {**ctx, "error": "Your email is not registered. Ask your admin to add you as a team member first."})
             user = CRMUser(
                 name=name.strip(),
                 email=email.strip().lower(),
                 password_hash=hash_password(password),
-                is_admin=is_first,
+                role=UserRole.admin.value,
+                is_admin=True,
                 active=True,
             )
             s.add(user)
@@ -603,14 +609,20 @@ def _sso_callback_inner(request: Request, code: str, state: str, error: str):
         if user:
             if not user.active:
                 return TEMPLATES.TemplateResponse(request, "login.html",
-                                                  {"error": "Account deactivated", "sso_enabled": SSO_ENABLED})
+                                                  {"error": "Account deactivated. Contact your admin for access.", "sso_enabled": SSO_ENABLED})
+            if not user.name or user.name == email.split("@")[0]:
+                user.name = name
             uid = user.id
         else:
-            is_first = s.scalar(select(func.count()).select_from(CRMUser).where(CRMUser.password_hash.isnot(None))) == 0
+            has_any_user = s.scalar(select(func.count()).select_from(CRMUser)) > 0
+            if has_any_user:
+                return TEMPLATES.TemplateResponse(request, "login.html",
+                                                  {"error": "Your email is not registered. Ask your admin to add you as a team member first.", "sso_enabled": SSO_ENABLED})
             user = CRMUser(
                 name=name,
                 email=email,
-                is_admin=is_first,
+                role=UserRole.admin.value,
+                is_admin=True,
                 active=True,
             )
             s.add(user)
