@@ -21,7 +21,10 @@ LEADLIST_FILE = DATA_RAW / "Lead_list.xlsx"
 # Verified addresses revealed through Apollo (optional; skipped if absent).
 APOLLO_FILE = DATA_RAW / "apollo_verified.csv"
 
-DB_URL = os.environ.get("LEADCORE_DB_URL", f"sqlite:///{ROOT / 'leadcore.db'}")
+_default_db = ROOT / "leadcore.db"
+if not _default_db.parent.exists() or not os.access(_default_db.parent, os.W_OK):
+    _default_db = Path("/tmp") / "leadcore.db"
+DB_URL = os.environ.get("LEADCORE_DB_URL", f"sqlite:///{_default_db}")
 SECRET_KEY = os.environ.get("LEADCORE_SECRET_KEY", "dev-change-me-in-production")
 
 # --- SSO (OIDC via auth.silverpush.live) ----------------------------------------
