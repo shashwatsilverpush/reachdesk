@@ -28,13 +28,13 @@
 </style>
 
 <div class="card mb-2">
-  <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;">
-    <a href="/leads" class="link" style="text-decoration:none;{% if not filt_status %}font-weight:700{% endif %}">
-      <span class="pill" style="background:var(--ink);">All</span> <span class="muted" style="margin-left:4px;font-size:12px;">{{ total_leads }}</span>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+    <a href="/leads" class="chip{% if not filt_status %} active{% endif %}">
+      All <span class="count">{{ total_leads }}</span>
     </a>
     {% for val, cnt in pipeline.items() %}
-      <a href="/leads?status={{ val }}" class="link" style="text-decoration:none;{% if filt_status == val %}font-weight:700{% endif %}">
-        {{ status_pill(val) }} <span class="muted" style="margin-left:4px;font-size:12px;">{{ cnt }}</span>
+      <a href="/leads?status={{ val }}" class="chip{% if filt_status == val %} active{% endif %}">
+        {{ val.replace('_', ' ').title() }} <span class="count">{{ cnt }}</span>
       </a>
     {% endfor %}
   </div>

@@ -3,10 +3,10 @@
 {% block page_title %}Settings{% endblock %}
 
 {% block body %}
-<div style="display:flex; gap:10px; margin-bottom:20px;">
-  <a href="/settings/team" class="btn btn-sm">Team</a>
-  <a href="/settings/templates" class="btn btn-sm" style="background:transparent; border:1px solid var(--line); color:var(--ink);">Templates</a>
-  <a href="/settings/account" class="btn btn-sm" style="background:transparent; border:1px solid var(--line); color:var(--ink);">Account</a>
+<div style="display:flex; gap:8px; margin-bottom:20px;">
+  <a href="/settings/team" class="chip active">Team</a>
+  <a href="/settings/templates" class="chip">Templates</a>
+  <a href="/settings/account" class="chip">Account</a>
 </div>
 
 {% if error %}
