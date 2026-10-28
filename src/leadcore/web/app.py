@@ -110,6 +110,27 @@ def _ensure_db():
 
 _LEAD_STATUSES = [s.value for s in LeadStatus]
 
+
+@app.get("/healthz")
+def healthz():
+    """Lightweight health check — tests DB connectivity."""
+    info = {"status": "ok", "db_url_host": "unknown"}
+    raw = db.default_url()
+    if "@" in raw:
+        info["db_url_host"] = raw.split("@")[-1].split("?")[0]
+    else:
+        info["db_url_host"] = raw[:30]
+    try:
+        from sqlalchemy import text
+        with db.session() as s:
+            s.execute(text("SELECT 1"))
+        info["db"] = "connected"
+    except Exception as exc:
+        info["status"] = "degraded"
+        info["db"] = f"error: {exc}"
+    return info
+
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
