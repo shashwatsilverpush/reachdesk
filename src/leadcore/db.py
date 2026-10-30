@@ -17,7 +17,7 @@ ALEMBIC_INI = Path(__file__).resolve().parents[2] / "alembic.ini"
 
 def default_url() -> str:
     """The DB URL, read from the environment at call time (not frozen at import)."""
-    return os.environ.get("LEADCORE_DB_URL", config.DB_URL)
+    return os.environ.get("LEADCORE_DB_URL") or os.environ.get("DATABASE_URL") or config.DB_URL
 
 
 def engine(url: str | None = None) -> Engine:
