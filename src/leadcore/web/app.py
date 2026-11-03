@@ -341,6 +341,7 @@ def _linkedin_lookup(url: str) -> dict:
         # Recover middle name from slug
         middle = _extract_middle_from_slug(url, info["first"], info.get("last", ""))
         if middle:
+            info["middle"] = middle
             info["first"] = f"{info['first']} {middle}"
         warnings = []
         if slug_last:
@@ -1381,8 +1382,8 @@ def scope_page(request: Request, error: str = ""):
     with db.session() as s:
         ctx = _scope_base_ctx(s)
     return _page(request, "scope.html", step="input", result=None, first="", last="",
-                 domain="", company="", role="", phone="", country="", linkedin_url="",
-                 has_smtp_verify=HAS_EMAIL_VERIFIER, live_verify={},
+                 middle="", domain="", company="", role="", phone="", country="",
+                 linkedin_url="", has_smtp_verify=HAS_EMAIL_VERIFIER, live_verify={},
                  pattern_hits=[], best_hit=None, ext_credit_info=None,
                  dp=None, error=error, **ctx)
 
@@ -1394,8 +1395,8 @@ def scope_linkedin_lookup(url: str = Query("")):
 
 @app.post("/scope", response_class=HTMLResponse)
 def scope_generate(request: Request, first: str = Form(""), last: str = Form(""),
-                   domain: str = Form(""), company: str = Form(""), role: str = Form(""),
-                   phone: str = Form(""), country: str = Form(""),
+                   middle: str = Form(""), domain: str = Form(""), company: str = Form(""),
+                   role: str = Form(""), phone: str = Form(""), country: str = Form(""),
                    linkedin_url: str = Form("")):
     user = _require_user(request)
     if not user:
@@ -1414,11 +1415,15 @@ def scope_generate(request: Request, first: str = Form(""), last: str = Form("")
             if not domain.strip():
                 domain = info.get("domain", "")
 
+    # Merge middle name/initial into first so the pattern generator
+    # picks it up as a multi-word first name → middle extraction.
+    full_first = f"{first.strip()} {middle.strip()}" if middle.strip() else first
+
     with db.session() as s:
         ctx = _scope_base_ctx(s)
 
-    base_ctx = dict(first=first, last=last, domain=domain, company=company, role=role,
-                    phone=phone, country=country,
+    base_ctx = dict(first=first, last=last, middle=middle, domain=domain, company=company,
+                    role=role, phone=phone, country=country,
                     linkedin_url=linkedin_url, has_smtp_verify=HAS_EMAIL_VERIFIER, **ctx)
 
     if not first.strip():
@@ -1432,7 +1437,7 @@ def scope_generate(request: Request, first: str = Form(""), last: str = Form("")
                      error="Could not detect the firm domain. Enter it manually.", **base_ctx)
 
     result, dp, pattern_hits, best_hit, live_verify, ext_credit_info = _run_generation(
-        first, last, domain, linkedin_url, do_verify=True,
+        full_first, last, domain, linkedin_url, do_verify=True,
     )
 
     return _page(request, "scope.html", step="results", result=result, dp=dp,

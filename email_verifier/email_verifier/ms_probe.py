@@ -70,8 +70,9 @@ PATTERN_SPECIFICITY: dict[str, int] = {
     "firstl": 2, "first.l": 2, "lastf": 2,
     "f.middle": 2, "fmiddle": 2, "middle.last": 2, "middlelast": 2,
     "middlef": 2, "f.m": 2,
-    # 1 = single name part
+    # 1 = single name part or brute-force middle-initial guess
     "first": 1, "last": 1, "middle": 1, "fl": 1, "fml": 1,
+    **{f"f?last:{c}": 1 for c in "abcdefghijklmnopqrstuvwxyz"},
     # 0 = single initial
     "f": 0, "l": 0, "m": 0,
 }
@@ -179,6 +180,12 @@ def _generate_patterns(first: str, last: str, domain: str) -> list[tuple[str, st
             (f"{f}{mid[0]}", "firstm"),
             (f"{mid}", "middle"),
         ]
+
+    # Brute-force middle-initial patterns when no middle name was given.
+    # Catches emails like jslee@ when we only know "Jungsoo Lee".
+    if not mid and l:
+        for c in "abcdefghijklmnopqrstuvwxyz":
+            candidates.append((f"{f[0]}{c}{l}", f"f?last:{c}"))
 
     seen: set[str] = set()
     unique: list[tuple[str, str]] = []

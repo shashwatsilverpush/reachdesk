@@ -26,10 +26,14 @@
 
   <form method="post" action="/scope" id="scope-form">
     <input type="hidden" name="linkedin_url" id="li-hidden" value="{{ linkedin_url }}">
-    <div class="grid-2" style="margin-bottom:10px;">
+    <div style="display:grid; grid-template-columns:1fr auto 1fr; gap:8px; margin-bottom:10px;">
       <div>
         <label style="font-size:12px; color:var(--muted); display:block; margin-bottom:2px;">First name *</label>
         <input name="first" id="f-first" value="{{ first }}" required style="width:100%;">
+      </div>
+      <div style="min-width:80px; max-width:100px;">
+        <label style="font-size:12px; color:var(--muted); display:block; margin-bottom:2px;">Middle</label>
+        <input name="middle" id="f-middle" value="{{ middle }}" placeholder="initial" style="width:100%;">
       </div>
       <div>
         <label style="font-size:12px; color:var(--muted); display:block; margin-bottom:2px;">Last name</label>
@@ -294,7 +298,16 @@ async function lookupLinkedIn() {
     const r = await fetch('/scope/linkedin-lookup?url=' + encodeURIComponent(url));
     const d = await r.json();
     if (d.error) { st.textContent = d.error; return; }
-    if (d.first) document.getElementById('f-first').value = d.first;
+    if (d.middle) {
+      document.getElementById('f-middle').value = d.middle;
+      // Put only the base first name (without middle) in the first field
+      var baseFirst = d.first || '';
+      if (d.middle && baseFirst.toLowerCase().endsWith(' ' + d.middle.toLowerCase()))
+        baseFirst = baseFirst.slice(0, -(d.middle.length + 1));
+      document.getElementById('f-first').value = baseFirst || d.first;
+    } else if (d.first) {
+      document.getElementById('f-first').value = d.first;
+    }
     if (d.last) document.getElementById('f-last').value = d.last;
     if (d.company) document.getElementById('f-company').value = d.company;
     if (d.domain) document.getElementById('f-domain').value = d.domain;
