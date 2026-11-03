@@ -61,11 +61,13 @@ PATTERN_SPECIFICITY: dict[str, int] = {
     "last.first": 3, "lastfirst": 3, "last_first": 3,
     # 3 = includes middle name (even more specific)
     "first.middle.last": 3, "firstmiddlelast": 3, "first.m.last": 3,
-    "fmlast": 3, "f.m.last": 3,
+    "fmlast": 3, "f.m.last": 3, "fm.last": 3, "fm_last": 3, "fm-last": 3,
     "first.middle": 3, "firstmiddle": 3, "first_middle_last": 3,
     "first-middle-last": 3, "firstm": 3,
+    "last.fm": 3, "lastfm": 3, "fmiddlel": 3,
     # 2 = partial name
-    "flast": 2, "f.last": 2, "firstl": 2, "first.l": 2, "lastf": 2,
+    "flast": 2, "f.last": 2, "f_last": 2, "f-last": 2,
+    "firstl": 2, "first.l": 2, "lastf": 2,
     "f.middle": 2, "fmiddle": 2, "middle.last": 2, "middlelast": 2,
     "middlef": 2, "f.m": 2,
     # 1 = single name part
@@ -110,6 +112,8 @@ def _generate_patterns(first: str, last: str, domain: str) -> list[tuple[str, st
             (f"{f}_{l}", "first_last"),
             (f"{f}-{l}", "first-last"),
             (f"{f[0]}{l}", "flast"),
+            (f"{f[0]}_{l}", "f_last"),
+            (f"{f[0]}-{l}", "f-last"),
             (f"{f}{l[0]}", "firstl"),
             (f"{f[0]}.{l}", "f.last"),
             (f"{f}.{l[0]}", "first.l"),
@@ -138,6 +142,14 @@ def _generate_patterns(first: str, last: str, domain: str) -> list[tuple[str, st
             (f"{f}.{mid[0]}.{l}", "first.m.last"),
             (f"{f[0]}{mid[0]}{l}", "fmlast"),
             (f"{f[0]}.{mid[0]}.{l}", "f.m.last"),
+            (f"{f[0]}{mid[0]}.{l}", "fm.last"),
+            (f"{f[0]}{mid[0]}_{l}", "fm_last"),
+            (f"{f[0]}{mid[0]}-{l}", "fm-last"),
+            # Last + initials
+            (f"{l}.{f[0]}{mid[0]}", "last.fm"),
+            (f"{l}{f[0]}{mid[0]}", "lastfm"),
+            # First initial + full middle + last initial
+            (f"{f[0]}{mid}{l[0]}", "fmiddlel"),
             # First + middle (no last)
             (f"{f}.{mid}", "first.middle"),
             (f"{f}{mid}", "firstmiddle"),
