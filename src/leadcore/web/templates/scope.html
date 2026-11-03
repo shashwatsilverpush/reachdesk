@@ -104,41 +104,42 @@
 
 <!-- Results -->
 <style>
-  .results-grid { display:grid; grid-template-columns:1fr 1fr 1fr; gap:16px; }
-  @media (max-width:900px) { .results-grid { grid-template-columns:1fr; } }
+  .results-stack { display:flex; flex-direction:column; gap:16px; }
+  .results-row { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+  @media (max-width:700px) { .results-row { grid-template-columns:1fr; } }
   .result-col { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:16px 18px; }
   .result-col h3 { display:flex; align-items:center; gap:8px; margin-bottom:12px; }
   .result-col h3 .count { display:inline-flex; align-items:center; justify-content:center; min-width:22px; height:22px; border-radius:11px; font-size:11px; font-weight:700; color:#fff; padding:0 6px; }
   .count-found { background:var(--s-won); }
   .count-unverified { background:#f59e0b; }
   .count-notfound { background:var(--s-lost); }
-  .hit-row { display:flex; align-items:center; padding:8px 10px; border-radius:6px; font-size:13px; transition:background .12s; }
+  .hit-row { display:flex; align-items:center; gap:8px; padding:8px 10px; border-radius:6px; font-size:13px; transition:background .12s; min-width:0; }
   .hit-row:hover { background:#f4f5f7; }
-  .hit-row .email { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:12px; word-break:break-all; }
-  .hit-row .pattern-tag { color:var(--muted); font-size:11px; margin-left:6px; }
-  .hit-row .select-btn { margin-left:auto; opacity:0; padding:3px 10px; font-size:11px; font-weight:600; background:var(--accent); color:#fff; border:none; border-radius:6px; cursor:pointer; transition:opacity .12s; white-space:nowrap; }
+  .hit-row .email { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:12px; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .hit-row .pattern-tag { color:var(--muted); font-size:11px; flex-shrink:0; }
+  .hit-row .select-btn { margin-left:auto; flex-shrink:0; opacity:0; padding:3px 10px; font-size:11px; font-weight:600; background:var(--accent); color:#fff; border:none; border-radius:6px; cursor:pointer; transition:opacity .12s; white-space:nowrap; }
   .hit-row:hover .select-btn { opacity:1; }
-  .hit-row .selected-tag { margin-left:auto; font-size:11px; font-weight:600; color:var(--s-won); display:none; }
+  .hit-row .selected-tag { margin-left:auto; flex-shrink:0; font-size:11px; font-weight:600; color:var(--s-won); display:none; }
   .hit-row.is-selected { background:#f0fdf4; }
   .hit-row.is-selected .select-btn { opacity:1; background:var(--s-won); }
   .hit-row.is-selected .selected-tag { display:inline; }
-  .nf-row { display:flex; align-items:center; padding:6px 10px; font-size:13px; color:var(--muted); }
-  .nf-row .email { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:12px; text-decoration:line-through; opacity:.6; }
-  .nf-row .pattern-tag { font-size:11px; margin-left:6px; opacity:.5; }
-  .uv-row { display:flex; align-items:center; padding:8px 10px; border-radius:6px; font-size:13px; transition:background .12s; }
+  .nf-row { display:flex; align-items:center; gap:8px; padding:6px 10px; font-size:13px; color:var(--muted); min-width:0; }
+  .nf-row .email { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:12px; text-decoration:line-through; opacity:.6; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .nf-row .pattern-tag { font-size:11px; opacity:.5; flex-shrink:0; }
+  .uv-row { display:flex; align-items:center; gap:8px; padding:8px 10px; border-radius:6px; font-size:13px; transition:background .12s; min-width:0; }
   .uv-row:hover { background:#fffbeb; }
-  .uv-row .email { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:12px; word-break:break-all; }
-  .uv-row .pattern-tag { color:var(--muted); font-size:11px; margin-left:6px; }
-  .uv-row .uv-actions { margin-left:auto; display:flex; gap:4px; opacity:0; transition:opacity .12s; }
+  .uv-row .email { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:12px; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .uv-row .pattern-tag { color:var(--muted); font-size:11px; flex-shrink:0; }
+  .uv-row .uv-actions { margin-left:auto; display:flex; gap:4px; flex-shrink:0; opacity:0; transition:opacity .12s; }
   .uv-row:hover .uv-actions { opacity:1; }
   .uv-row .select-btn { padding:3px 10px; font-size:11px; font-weight:600; background:var(--accent); color:#fff; border:none; border-radius:6px; cursor:pointer; white-space:nowrap; }
   .uv-row .copy-btn { padding:3px 8px; font-size:11px; font-weight:500; background:transparent; color:var(--muted); border:1px solid var(--line); border-radius:6px; cursor:pointer; white-space:nowrap; }
   .uv-row .copy-btn:hover { border-color:var(--muted); }
-  .uv-row .selected-tag { margin-left:auto; font-size:11px; font-weight:600; color:var(--s-won); display:none; }
+  .uv-row .selected-tag { margin-left:auto; flex-shrink:0; font-size:11px; font-weight:600; color:var(--s-won); display:none; }
   .uv-row.is-selected { background:#f0fdf4; }
   .uv-row.is-selected .uv-actions { display:none; }
   .uv-row.is-selected .selected-tag { display:inline; }
-  .uv-reason { font-size:10px; color:#b45309; margin-left:4px; }
+  .uv-reason { font-size:10px; color:#b45309; flex-shrink:0; }
 </style>
 
 {% if dp %}
@@ -148,8 +149,8 @@
 </div>
 {% endif %}
 
-<div class="results-grid">
-  <!-- Found -->
+<div class="results-stack">
+  <!-- Found — full width -->
   <div class="result-col">
     <h3>Found <span class="count count-found">{{ ns.found|length }}</span></h3>
     {% if ns.found %}
@@ -166,41 +167,43 @@
     {% endif %}
   </div>
 
-  <!-- Unverified -->
-  <div class="result-col">
-    <h3>Unverified <span class="count count-unverified">{{ ns.unverified|length }}</span></h3>
-    {% if ns.unverified %}
-      <p class="muted" style="font-size:11px; margin:-6px 0 10px;">Could not confirm — catch-all domain or probe blocked. You can still select one if you're confident.</p>
-      {% for h in ns.unverified %}
-      <div class="uv-row" data-email="{{ h.email }}">
-        <span class="email">{{ h.email }}</span>
-        {% if h.pattern %}<span class="pattern-tag">{{ h.pattern }}</span>{% endif %}
-        {% if h.reason and h.reason != 'unverified' %}<span class="uv-reason">({{ h.reason | replace('_', ' ') }})</span>{% endif %}
-        <div class="uv-actions">
-          <button class="copy-btn" onclick="navigator.clipboard.writeText('{{ h.email }}');this.textContent='Copied';setTimeout(()=>this.textContent='Copy',1200)">Copy</button>
-          <button class="select-btn" onclick="selectEmail(this, '{{ h.email }}')">Select</button>
+  <div class="results-row">
+    <!-- Unverified -->
+    <div class="result-col">
+      <h3>Unverified <span class="count count-unverified">{{ ns.unverified|length }}</span></h3>
+      {% if ns.unverified %}
+        <p class="muted" style="font-size:11px; margin:-6px 0 10px;">Catch-all domain or probe blocked. Select one if you're confident.</p>
+        {% for h in ns.unverified %}
+        <div class="uv-row" data-email="{{ h.email }}">
+          <span class="email">{{ h.email }}</span>
+          {% if h.pattern %}<span class="pattern-tag">{{ h.pattern }}</span>{% endif %}
+          {% if h.reason and h.reason != 'unverified' %}<span class="uv-reason">({{ h.reason | replace('_', ' ') }})</span>{% endif %}
+          <div class="uv-actions">
+            <button class="copy-btn" onclick="navigator.clipboard.writeText('{{ h.email }}');this.textContent='Copied';setTimeout(()=>this.textContent='Copy',1200)">Copy</button>
+            <button class="select-btn" onclick="selectEmail(this, '{{ h.email }}')">Select</button>
+          </div>
+          <span class="selected-tag">Selected</span>
         </div>
-        <span class="selected-tag">Selected</span>
-      </div>
-      {% endfor %}
-    {% else %}
-      <p class="muted" style="font-size:13px;">Nothing to verify.</p>
-    {% endif %}
-  </div>
+        {% endfor %}
+      {% else %}
+        <p class="muted" style="font-size:13px;">Nothing to verify.</p>
+      {% endif %}
+    </div>
 
-  <!-- Not Found -->
-  <div class="result-col">
-    <h3>Not Found <span class="count count-notfound">{{ ns.notfound|length }}</span></h3>
-    {% if ns.notfound %}
-      {% for h in ns.notfound %}
-      <div class="nf-row">
-        <span class="email">{{ h.email }}</span>
-        {% if h.pattern %}<span class="pattern-tag">{{ h.pattern }}</span>{% endif %}
-      </div>
-      {% endfor %}
-    {% else %}
-      <p class="muted" style="font-size:13px;">All patterns returned results.</p>
-    {% endif %}
+    <!-- Not Found -->
+    <div class="result-col">
+      <h3>Not Found <span class="count count-notfound">{{ ns.notfound|length }}</span></h3>
+      {% if ns.notfound %}
+        {% for h in ns.notfound %}
+        <div class="nf-row">
+          <span class="email">{{ h.email }}</span>
+          {% if h.pattern %}<span class="pattern-tag">{{ h.pattern }}</span>{% endif %}
+        </div>
+        {% endfor %}
+      {% else %}
+        <p class="muted" style="font-size:13px;">All patterns returned results.</p>
+      {% endif %}
+    </div>
   </div>
 </div>
 
