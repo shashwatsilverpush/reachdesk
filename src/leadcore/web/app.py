@@ -422,10 +422,17 @@ def _run_generation(first: str, last: str, domain: str, linkedin_url: str = "",
             pattern_hits = [{"email": h.email, "pattern": h.pattern, "exists": h.exists} for h in hits]
         else:
             candidates = _generate_patterns(first.strip(), last.strip(), domain.strip())
+            is_catch_all = False
             for email, label in candidates:
+                if is_catch_all:
+                    # Skip SMTP for remaining patterns once catch-all is detected
+                    pattern_hits.append({"email": email, "pattern": label, "exists": None})
+                    continue
                 r = smtp_verify(email, timeout=10, retries=1, delay=2, detect_catch_all=True)
                 d = r.to_dict()
                 live_verify[email] = d
+                if d.get("reason") == "catch_all_domain":
+                    is_catch_all = True
                 pattern_hits.append({
                     "email": email, "pattern": label,
                     "exists": True if d["verdict"] == "valid" else

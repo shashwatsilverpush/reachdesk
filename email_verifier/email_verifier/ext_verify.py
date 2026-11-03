@@ -7,6 +7,8 @@ These services can resolve catch-all ambiguity that SMTP alone cannot
 from __future__ import annotations
 
 import os
+from collections import defaultdict
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 
 import httpx
@@ -117,13 +119,11 @@ def ext_verify_patterns(
     budget: int | None = None,
     timeout: int = 15,
 ) -> dict:
-    """Verify pattern hits using external APIs, spending credits wisely.
+    """Verify pattern hits using external APIs in concurrent specificity tiers.
 
-    - Checks high-specificity patterns first (full first+last).
-    - Stops early once a definitive match is found.
-    - Respects a credit budget (defaults to available credits).
-
-    Returns dict with 'credits_used' and 'credits_remaining' info.
+    Groups patterns by specificity and verifies each tier in parallel.
+    Stops after the first tier that produces a valid hit, saving both
+    wall-clock time and credits on lower tiers.
     """
     from email_verifier.ms_probe import PATTERN_SPECIFICITY
 
@@ -141,32 +141,48 @@ def ext_verify_patterns(
         return {"credits_used": 0, "credits_remaining": credits, "skipped": True,
                 "reason": "No verification credits remaining"}
 
-    sorted_hits = sorted(
-        enumerate(pattern_hits),
-        key=lambda x: -PATTERN_SPECIFICITY.get(x[1]["pattern"], 0),
-    )
+    # Group by specificity tier (descending)
+    tiers: dict[int, list[tuple[int, dict]]] = defaultdict(list)
+    for idx, h in enumerate(pattern_hits):
+        spec = PATTERN_SPECIFICITY.get(h["pattern"], 0)
+        tiers[spec].append((idx, h))
 
     used = 0
-    found_valid = False
 
-    for idx, h in sorted_hits:
-        if used >= available:
+    for spec in sorted(tiers.keys(), reverse=True):
+        tier = tiers[spec]
+        if used + len(tier) > available:
+            tier = tier[:available - used]
+        if not tier:
             break
+
+        # Verify entire tier in parallel
+        results: dict[int, ExtResult] = {}
+        with ThreadPoolExecutor(max_workers=min(len(tier), 10)) as pool:
+            futures = {
+                pool.submit(ext_verify, h["email"], timeout): idx
+                for idx, h in tier
+            }
+            for future in as_completed(futures):
+                idx = futures[future]
+                results[idx] = future.result()
+
+        used += len(tier)
+        found_valid = False
+
+        for idx, ev in results.items():
+            if ev.status == "valid":
+                pattern_hits[idx]["exists"] = True
+                pattern_hits[idx]["ext_service"] = ev.service
+                found_valid = True
+            elif ev.status == "invalid":
+                pattern_hits[idx]["exists"] = False
+                pattern_hits[idx]["ext_service"] = ev.service
+            else:
+                pattern_hits[idx]["ext_service"] = ev.service
+
         if found_valid:
             break
-
-        ev = ext_verify(h["email"], timeout)
-        used += 1
-
-        if ev.status == "valid":
-            pattern_hits[idx]["exists"] = True
-            pattern_hits[idx]["ext_service"] = ev.service
-            found_valid = True
-        elif ev.status == "invalid":
-            pattern_hits[idx]["exists"] = False
-            pattern_hits[idx]["ext_service"] = ev.service
-        else:
-            pattern_hits[idx]["ext_service"] = ev.service
 
     final_credits = get_credits()
     return {
