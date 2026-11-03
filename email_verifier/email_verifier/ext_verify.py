@@ -147,12 +147,12 @@ def ext_verify_patterns(
     )
 
     used = 0
-    found_definitive = False
+    found_valid = False
 
     for idx, h in sorted_hits:
         if used >= available:
             break
-        if found_definitive and PATTERN_SPECIFICITY.get(h["pattern"], 0) < 3:
+        if found_valid:
             break
 
         ev = ext_verify(h["email"], timeout)
@@ -161,8 +161,7 @@ def ext_verify_patterns(
         if ev.status == "valid":
             pattern_hits[idx]["exists"] = True
             pattern_hits[idx]["ext_service"] = ev.service
-            if PATTERN_SPECIFICITY.get(h["pattern"], 0) >= 3:
-                found_definitive = True
+            found_valid = True
         elif ev.status == "invalid":
             pattern_hits[idx]["exists"] = False
             pattern_hits[idx]["ext_service"] = ev.service
