@@ -26,6 +26,8 @@
 
   <form method="post" action="/scope" id="scope-form">
     <input type="hidden" name="linkedin_url" id="li-hidden" value="{{ linkedin_url }}">
+    <input type="hidden" name="apollo_email" id="apollo-email-hidden" value="{{ apollo_email|default('', true) }}">
+    <input type="hidden" name="apollo_email_status" id="apollo-email-status-hidden" value="{{ apollo_email_status|default('', true) }}">
     <div style="display:grid; grid-template-columns:1fr auto 1fr; gap:8px; margin-bottom:10px;">
       <div>
         <label style="font-size:12px; color:var(--muted); display:block; margin-bottom:2px;">First name *</label>
@@ -312,7 +314,18 @@ async function lookupLinkedIn() {
     if (d.company) document.getElementById('f-company').value = d.company;
     if (d.domain) document.getElementById('f-domain').value = d.domain;
     if (d.role) document.getElementById('f-role').value = d.role;
-    st.textContent = 'Found via ' + (d.source || 'lookup');
+    if (d.phone) document.getElementById('f-phone').value = d.phone;
+    if (d.apollo_email) {
+      document.getElementById('apollo-email-hidden').value = d.apollo_email;
+      document.getElementById('apollo-email-status-hidden').value = d.apollo_email_status || '';
+    }
+    var statusParts = ['Found via ' + (d.source || 'lookup')];
+    if (d.apollo_email) {
+      var badge = d.apollo_email_status === 'verified' ? '✓ verified' : d.apollo_email_status || 'found';
+      statusParts.push('Email: ' + d.apollo_email + ' (' + badge + ')');
+    }
+    if (d.location) statusParts.push(d.location);
+    st.textContent = statusParts.join(' · ');
     if (d.warnings) st.textContent += ' — ' + d.warnings.join('; ');
   } catch(e) { st.textContent = 'Lookup failed: ' + e.message; }
   finally { btn.classList.remove('btn-loading'); btn.textContent = 'Lookup'; }

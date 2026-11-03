@@ -56,6 +56,8 @@ def check_m365_account(email: str, timeout: int = 10) -> bool | None:
 
 
 PATTERN_SPECIFICITY: dict[str, int] = {
+    # 4 = externally verified (Apollo, etc.)
+    "apollo": 4,
     # 3 = full first+last (unique to this person)
     "first.last": 3, "firstlast": 3, "first_last": 3, "first-last": 3,
     "last.first": 3, "lastfirst": 3, "last_first": 3,

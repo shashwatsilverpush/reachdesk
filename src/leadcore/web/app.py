@@ -244,7 +244,7 @@ def _apollo_lookup(linkedin_url: str) -> dict:
         with httpx.Client(timeout=15) as client:
             resp = client.post(
                 "https://api.apollo.io/v1/people/match",
-                json={"linkedin_url": linkedin_url},
+                json={"linkedin_url": linkedin_url, "reveal_personal_emails": True},
                 headers={"x-api-key": APOLLO_API_KEY, "Content-Type": "application/json"},
             )
             if resp.status_code != 200:
@@ -263,6 +263,25 @@ def _apollo_lookup(linkedin_url: str) -> dict:
     info["domain"] = org.get("primary_domain", "") or org.get("website_url", "")
     if info["domain"]:
         info["domain"] = re.sub(r"^https?://", "", info["domain"]).rstrip("/").split("/")[0]
+
+    # Email — Apollo often already has the verified work email
+    if data.get("email"):
+        info["apollo_email"] = data["email"]
+        info["apollo_email_status"] = data.get("email_status", "unknown")
+        info["apollo_email_confidence"] = data.get("extrapolated_email_confidence")
+
+    # Location
+    loc_parts = [p for p in [data.get("city"), data.get("state"), data.get("country")] if p]
+    if loc_parts:
+        info["location"] = ", ".join(loc_parts)
+
+    # Phone numbers
+    phones = data.get("phone_numbers") or []
+    if phones:
+        raw = phones[0].get("raw_number") or phones[0].get("sanitized_number", "")
+        if raw:
+            info["phone"] = raw
+
     return info
 
 
@@ -1397,7 +1416,8 @@ def scope_linkedin_lookup(url: str = Query("")):
 def scope_generate(request: Request, first: str = Form(""), last: str = Form(""),
                    middle: str = Form(""), domain: str = Form(""), company: str = Form(""),
                    role: str = Form(""), phone: str = Form(""), country: str = Form(""),
-                   linkedin_url: str = Form("")):
+                   linkedin_url: str = Form(""),
+                   apollo_email: str = Form(""), apollo_email_status: str = Form("")):
     user = _require_user(request)
     if not user:
         return RedirectResponse("/login", status_code=302)
@@ -1414,6 +1434,10 @@ def scope_generate(request: Request, first: str = Form(""), last: str = Form("")
             role = role or info.get("role", "")
             if not domain.strip():
                 domain = info.get("domain", "")
+            # Pick up Apollo email if not already provided via hidden field
+            if not apollo_email and info.get("apollo_email"):
+                apollo_email = info["apollo_email"]
+                apollo_email_status = info.get("apollo_email_status", "")
 
     # Merge middle name/initial into first so the pattern generator
     # picks it up as a multi-word first name → middle extraction.
@@ -1424,6 +1448,7 @@ def scope_generate(request: Request, first: str = Form(""), last: str = Form("")
 
     base_ctx = dict(first=first, last=last, middle=middle, domain=domain, company=company,
                     role=role, phone=phone, country=country,
+                    apollo_email=apollo_email, apollo_email_status=apollo_email_status,
                     linkedin_url=linkedin_url, has_smtp_verify=HAS_EMAIL_VERIFIER, **ctx)
 
     if not first.strip():
@@ -1439,6 +1464,18 @@ def scope_generate(request: Request, first: str = Form(""), last: str = Form("")
     result, dp, pattern_hits, best_hit, live_verify, ext_credit_info = _run_generation(
         full_first, last, domain, linkedin_url, do_verify=True,
     )
+
+    # Inject Apollo email into results if available
+    if apollo_email.strip():
+        already = {h["email"] for h in pattern_hits}
+        if result and result.candidates:
+            already |= {c.address for c in result.candidates}
+        if apollo_email.strip() not in already:
+            pattern_hits.insert(0, {
+                "email": apollo_email.strip(),
+                "pattern": "apollo",
+                "exists": True if apollo_email_status == "verified" else None,
+            })
 
     return _page(request, "scope.html", step="results", result=result, dp=dp,
                  live_verify=live_verify, pattern_hits=pattern_hits,
