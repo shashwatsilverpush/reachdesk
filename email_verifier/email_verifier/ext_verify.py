@@ -122,8 +122,7 @@ def ext_verify_patterns(
     """Verify pattern hits using external APIs in concurrent specificity tiers.
 
     Groups patterns by specificity and verifies each tier in parallel.
-    Stops after the first tier that produces a valid hit, saving both
-    wall-clock time and credits on lower tiers.
+    All tiers are checked so the user sees every valid result.
     """
     from email_verifier.ms_probe import PATTERN_SPECIFICITY
 
@@ -168,21 +167,16 @@ def ext_verify_patterns(
                 results[idx] = future.result()
 
         used += len(tier)
-        found_valid = False
 
         for idx, ev in results.items():
             if ev.status == "valid":
                 pattern_hits[idx]["exists"] = True
                 pattern_hits[idx]["ext_service"] = ev.service
-                found_valid = True
             elif ev.status == "invalid":
                 pattern_hits[idx]["exists"] = False
                 pattern_hits[idx]["ext_service"] = ev.service
             else:
                 pattern_hits[idx]["ext_service"] = ev.service
-
-        if found_valid:
-            break
 
     final_credits = get_credits()
     return {
