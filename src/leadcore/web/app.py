@@ -60,6 +60,11 @@ try:
 except ImportError:
     HAS_EMAIL_VERIFIER = False
 
+# Standalone pattern generation + external verification (works without email_verifier)
+from leadcore.email_patterns import generate_patterns, PATTERN_SPECIFICITY
+from leadcore.ext_verify import ext_verify_patterns as standalone_ext_verify_patterns
+from leadcore.ext_verify import get_credits as standalone_get_credits
+
 # ---------------------------------------------------------------------------
 # App setup
 # ---------------------------------------------------------------------------
@@ -510,11 +515,23 @@ def _run_generation(first: str, last: str, domain: str, linkedin_url: str = "",
                     pattern_hits.append({"email": email, "pattern": label, "exists": None})
                 ext_credit_info = ext_verify_patterns(pattern_hits, timeout=15)
 
+    # Fallback: no email_verifier but we can still do pattern gen + external API verification
+    if not HAS_EMAIL_VERIFIER and not pattern_hits and last.strip():
+        candidates = generate_patterns(first.strip(), last.strip(), domain.strip())
+        already = set()
+        if result and result.candidates:
+            already = {c.address for c in result.candidates}
+        for email, label in candidates:
+            if email not in already:
+                pattern_hits.append({"email": email, "pattern": label, "exists": None})
+        if pattern_hits:
+            ext_credit_info = standalone_ext_verify_patterns(pattern_hits, timeout=15)
+
     best_hit = None
     if pattern_hits:
-        from email_verifier.ms_probe import PATTERN_SPECIFICITY
+        from leadcore.email_patterns import PATTERN_SPECIFICITY as _PAT_SPEC
         for h in pattern_hits:
-            h["specificity"] = PATTERN_SPECIFICITY.get(h["pattern"], 0)
+            h["specificity"] = _PAT_SPEC.get(h["pattern"], 0)
         confirmed = [h for h in pattern_hits if h.get("exists") is True]
         if confirmed:
             confirmed.sort(key=lambda h: -h["specificity"])
